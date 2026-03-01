@@ -1,0 +1,194 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Nuclei",
+  "projectDescription": "A fast, customizable vulnerability scanner powered by YAML-based templates for detecting security vulnerabilities across applications, APIs, networks, DNS, and cloud configurations.",
+  "theme": "aspen",
+  "primaryColor": "#00DC82",
+  "lightColor": "#7EE787",
+  "darkColor": "#00A86B",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart",
+              "key-features"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/templates",
+              "concepts/workflows",
+              "concepts/protocols",
+              "concepts/operators",
+              "concepts/matchers-extractors"
+            ]
+          },
+          {
+            "group": "Using Nuclei",
+            "pages": [
+              "usage/running-scans",
+              "usage/target-specification",
+              "usage/template-selection",
+              "usage/filtering-templates",
+              "usage/output-options",
+              "usage/rate-limiting"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/config-file",
+              "configuration/environment-variables",
+              "configuration/reporting-integrations",
+              "configuration/authentication"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/fuzzing-dast",
+              "advanced/interactsh",
+              "advanced/cloud-integration",
+              "advanced/headless-browser",
+              "advanced/custom-dsl"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Template Development",
+        "groups": [
+          {
+            "group": "Getting Started with Templates",
+            "pages": [
+              "templates/introduction",
+              "templates/syntax-overview",
+              "templates/writing-first-template",
+              "templates/template-structure"
+            ]
+          },
+          {
+            "group": "Protocol Types",
+            "pages": [
+              "templates/protocols/http",
+              "templates/protocols/dns",
+              "templates/protocols/network",
+              "templates/protocols/ssl",
+              "templates/protocols/websocket",
+              "templates/protocols/whois",
+              "templates/protocols/javascript",
+              "templates/protocols/code",
+              "templates/protocols/file"
+            ]
+          },
+          {
+            "group": "Template Features",
+            "pages": [
+              "templates/matchers",
+              "templates/extractors",
+              "templates/variables",
+              "templates/helper-functions",
+              "templates/workflows",
+              "templates/flow-control"
+            ]
+          },
+          {
+            "group": "Template Best Practices",
+            "pages": [
+              "templates/best-practices",
+              "templates/validation",
+              "templates/signing",
+              "templates/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK & Library",
+        "groups": [
+          {
+            "group": "Library Usage",
+            "pages": [
+              "sdk/overview",
+              "sdk/installation",
+              "sdk/basic-usage",
+              "sdk/advanced-usage",
+              "sdk/configuration-options"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "sdk/api/nuclei-engine",
+              "sdk/api/template-filters",
+              "sdk/api/callbacks",
+              "sdk/api/options"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "resources/template-library",
+              "resources/examples",
+              "resources/use-cases",
+              "resources/contributing"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "resources/troubleshooting",
+              "resources/faq",
+              "resources/migration-guide",
+              "resources/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "YAML-based template system for vulnerability detection",
+    "Multi-protocol support (HTTP, DNS, TCP, SSL, WebSocket, WHOIS, JavaScript, Code)",
+    "Zero false positives through real-world condition simulation",
+    "Ultra-fast parallel scanning with request clustering",
+    "Community-driven template library with thousands of templates",
+    "CI/CD integration and regression testing",
+    "Integration with Jira, Splunk, GitHub, Elastic, GitLab",
+    "DAST and fuzzing capabilities",
+    "Cloud platform integration for result visualization",
+    "Embeddable Go library for custom automation"
+  ],
+  "publicApiSurface": [
+    "nuclei - Main CLI command",
+    "-t, --templates - Specify templates to run",
+    "-u, --target - Target URL/host to scan",
+    "-l, --list - Target list file",
+    "-s, --severity - Filter by severity",
+    "-tags - Filter by tags",
+    "-w, --workflows - Run workflows",
+    "-o, --output - Output file",
+    "-j, --jsonl - JSON output format",
+    "-dashboard - Upload to cloud platform",
+    "-dast - Enable DAST/fuzzing mode",
+    "-validate - Validate templates",
+    "-sign - Sign templates",
+    "-ai, --prompt - AI-powered template generation",
+    "nuclei.NewNucleiEngine() - Create engine instance (SDK)",
+    "nuclei.NewThreadSafeNucleiEngine() - Thread-safe engine (SDK)",
+    "nuclei.WithTemplateFilters() - Template filtering (SDK)",
+    "nuclei.ExecuteWithCallback() - Execute with callback (SDK)"
+  ]
+}
