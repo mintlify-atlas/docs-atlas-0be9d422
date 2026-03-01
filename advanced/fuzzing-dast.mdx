@@ -5,6 +5,20 @@ description: Learn how to perform dynamic application security testing using Nuc
 
 Nuclei's fuzzing engine enables dynamic application security testing (DAST) by intelligently fuzzing HTTP requests to discover vulnerabilities. The fuzzing functionality supports multiple request components and flexible rule-based transformations.
 
+## Enabling DAST mode
+
+To run fuzzing templates, use the `-dast` flag:
+
+```bash
+nuclei -target https://example.com -dast
+```
+
+This enables loading and execution of fuzzing templates from the nuclei-templates collection.
+
+<Tip>
+You can also use specific fuzzing templates with the `-t` flag to target particular vulnerability types.
+</Tip>
+
 ## Overview
 
 The fuzzing engine works by parsing HTTP requests, identifying fuzzable components (query parameters, headers, body, etc.), and applying transformation rules with payloads. It supports multiple data formats including JSON, XML, form data, and multipart requests.
@@ -467,5 +481,5 @@ extractors:
 ## Related documentation
 
 - [HTTP Protocol](/templates/protocols/http)
-- [Matchers](/templates/reference/matchers)
+- [Matchers](/templates/matchers)
 - [Interactsh](/advanced/interactsh)
