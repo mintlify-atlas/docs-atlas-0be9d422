@@ -1,0 +1,471 @@
+---
+title: Fuzzing and DAST
+description: Learn how to perform dynamic application security testing using Nuclei's fuzzing engine
+---
+
+Nuclei's fuzzing engine enables dynamic application security testing (DAST) by intelligently fuzzing HTTP requests to discover vulnerabilities. The fuzzing functionality supports multiple request components and flexible rule-based transformations.
+
+## Overview
+
+The fuzzing engine works by parsing HTTP requests, identifying fuzzable components (query parameters, headers, body, etc.), and applying transformation rules with payloads. It supports multiple data formats including JSON, XML, form data, and multipart requests.
+
+<Note>
+Fuzzing is performed on top of the existing HTTP protocol and can be combined with other Nuclei features like matchers, extractors, and interactsh.
+</Note>
+
+## Fuzzing components
+
+The fuzzing engine can target different parts of an HTTP request:
+
+### Available parts
+
+- `query` - URL query parameters
+- `header` - HTTP headers
+- `path` - URL path segments
+- `body` - Request body (supports JSON, XML, form-data, multipart)
+- `cookie` - Cookie values
+- `request` - All request parts
+
+## Rule types
+
+Fuzzing rules support different transformation types:
+
+### Replace
+
+Completely replaces the original value with the fuzz payload.
+
+```yaml
+fuzzing:
+  - part: query
+    type: replace
+    mode: single
+    keys:
+      - id
+    fuzz:
+      - "{{ssrf}}"
+      - "{{xss}}"
+```
+
+### Prefix
+
+Adds the payload before the original value.
+
+```yaml
+fuzzing:
+  - part: query
+    type: prefix
+    mode: single
+    keys:
+      - search
+    fuzz:
+      - "<script>alert(1)</script>"
+```
+
+### Postfix
+
+Appends the payload after the original value.
+
+```yaml
+fuzzing:
+  - part: query
+    type: postfix
+    mode: single
+    keys:
+      - id
+    fuzz:
+      - "'"
+      - '"'
+      - ";"
+```
+
+### Infix
+
+Inserts the payload between characters of the original value.
+
+```yaml
+fuzzing:
+  - part: body
+    type: infix
+    mode: single
+    fuzz:
+      - "{{injection}}"
+```
+
+### Replace regex
+
+Uses regular expressions to identify and replace specific patterns.
+
+```yaml
+fuzzing:
+  - part: path
+    type: replace-regex
+    replace-regex: "https?://.*"
+    fuzz:
+      - "{{interactsh-url}}"
+```
+
+## Fuzzing modes
+
+### Single mode
+
+Fuzzes one parameter at a time, generating individual requests for each payload.
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    fuzzing:
+      - part: query
+        type: postfix
+        mode: single
+        keys:
+          - id
+        fuzz:
+          - "'"
+          - '"'
+```
+
+### Multiple mode
+
+Fuzzes all matched parameters simultaneously in a single request.
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    fuzzing:
+      - part: query
+        type: postfix
+        mode: multiple
+        keys:
+          - id
+          - name
+        fuzz:
+          - "fuzz-payload"
+```
+
+## Targeting specific parameters
+
+### Using keys
+
+Target specific parameter names:
+
+```yaml
+fuzzing:
+  - part: query
+    type: replace
+    keys:
+      - url
+      - file
+      - host
+    fuzz:
+      - "{{ssrf}}"
+```
+
+### Using keys-regex
+
+Target parameters matching a regex pattern:
+
+```yaml
+fuzzing:
+  - part: header
+    type: postfix
+    keys-regex:
+      - ".*token.*"
+      - ".*auth.*"
+    fuzz:
+      - "invalid"
+```
+
+### Using values regex
+
+Target parameters with values matching a regex:
+
+```yaml
+fuzzing:
+  - part: body
+    type: replace
+    values:
+      - "https?://.*"
+    fuzz:
+      - "{{interactsh-url}}"
+```
+
+## JSON body fuzzing
+
+Fuzz JSON request bodies by targeting specific keys or all values:
+
+```yaml
+id: json-body-sqli
+
+info:
+  name: Fuzzing error SQLi payloads in JSON body
+  author: pdteam
+  severity: high
+
+http:
+  - pre-condition:
+      - type: dsl
+        dsl:
+          - method != "GET"
+          - method != "HEAD"
+          - contains(content_type, "application/json")
+        condition: and
+    
+    payloads:
+      injection:
+        - "'"
+        - '"'
+        - ";"
+    
+    fuzzing:
+      - part: body
+        type: postfix
+        mode: single
+        fuzz:
+          - '{{injection}}'
+    
+    stop-at-first-match: true
+    matchers:
+      - type: word
+        words:
+          - "SQL syntax error"
+          - "mysql_fetch"
+```
+
+## Advanced fuzzing examples
+
+### SQL injection testing
+
+```yaml
+id: advanced-sqli-fuzzing
+
+info:
+  name: Advanced SQL injection detection
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    payloads:
+      sqli:
+        - "' OR '1'='1"
+        - '" OR "1"="1'
+        - "'; DROP TABLE users--"
+        - "1' UNION SELECT NULL--"
+    
+    fuzzing:
+      - part: query
+        type: postfix
+        mode: single
+        keys-regex:
+          - ".*id.*"
+          - ".*user.*"
+        fuzz:
+          - '{{sqli}}'
+    
+    matchers-condition: or
+    matchers:
+      - type: word
+        words:
+          - "SQL syntax"
+          - "mysql_fetch"
+          - "pg_query"
+      
+      - type: regex
+        regex:
+          - "(?i)warning.*mysql_.*"
+```
+
+### Host header injection
+
+```yaml
+id: host-header-injection
+
+info:
+  name: Host header injection fuzzing
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    fuzzing:
+      - part: header
+        type: replace
+        mode: single
+        keys:
+          - Host
+        fuzz:
+          - "{{interactsh-url}}"
+          - "evil.com"
+          - "localhost"
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+```
+
+### Multipart form data fuzzing
+
+```yaml
+id: multipart-form-fuzzing
+
+info:
+  name: Multipart form data fuzzing
+  author: pdteam
+  severity: info
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/upload"
+    
+    fuzzing:
+      - part: body
+        type: postfix
+        mode: single
+        keys:
+          - filename
+          - description
+        fuzz:
+          - "<script>alert(1)</script>"
+          - "{{ssrf}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "<script>alert(1)</script>"
+```
+
+## Pre-conditions
+
+Use pre-conditions to control when fuzzing should be applied:
+
+```yaml
+http:
+  - pre-condition:
+      - type: dsl
+        dsl:
+          - method == "POST"
+          - contains(content_type, "application/json")
+          - contains(path, "/api/")
+        condition: and
+    
+    fuzzing:
+      - part: body
+        type: replace
+        fuzz:
+          - '{{payloads}}'
+```
+
+## Best practices
+
+<Steps>
+
+### Choose the right mode
+
+Use `single` mode for comprehensive testing (more requests, better coverage). Use `multiple` mode for faster scans when testing multiple parameters together.
+
+### Use stop-at-first-match
+
+Add `stop-at-first-match: true` to reduce noise and improve performance when a vulnerability is found.
+
+```yaml
+stop-at-first-match: true
+```
+
+### Combine with payloads
+
+Use the `payloads` directive to define reusable payload lists:
+
+```yaml
+payloads:
+  xss:
+    - "<script>alert(1)</script>"
+    - "<img src=x onerror=alert(1)>"
+  
+fuzzing:
+  - part: query
+    fuzz:
+      - '{{xss}}'
+```
+
+### Target specific parts
+
+Use `parts` instead of `part` to fuzz multiple components while excluding others:
+
+```yaml
+fuzzing:
+  - parts:
+      - query
+      - header
+    type: replace
+    fuzz:
+      - "{{payloads}}"
+```
+
+</Steps>
+
+<Warning>
+Fuzzing can generate a large number of requests. Always ensure you have permission to test the target application and be mindful of rate limiting.
+</Warning>
+
+## Integration with other features
+
+### Using with Interactsh
+
+```yaml
+fuzzing:
+  - part: query
+    type: replace
+    keys:
+      - url
+    fuzz:
+      - "{{interactsh-url}}"
+
+matchers:
+  - type: word
+    part: interactsh_protocol
+    words:
+      - "http"
+      - "dns"
+```
+
+### Using with extractors
+
+```yaml
+fuzzing:
+  - part: query
+    type: postfix
+    fuzz:
+      - "test"
+
+extractors:
+  - type: regex
+    part: body
+    regex:
+      - "error: (.*)"
+```
+
+## Performance considerations
+
+- Use `keys` or `keys-regex` to limit the scope of fuzzing
+- Enable `stop-at-first-match` when appropriate
+- Use `mode: multiple` for faster but less granular testing
+- Leverage pre-conditions to avoid unnecessary fuzzing
+
+## Related documentation
+
+- [HTTP Protocol](/templates/protocols/http)
+- [Matchers](/templates/reference/matchers)
+- [Interactsh](/advanced/interactsh)

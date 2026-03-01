@@ -1,0 +1,194 @@
+---
+title: Introduction to template development
+description: Learn the fundamentals of creating Nuclei templates for vulnerability detection
+---
+
+Nuclei templates are YAML-based files that define security checks, vulnerability detection logic, and scanning workflows. They enable security researchers to codify detection patterns and share them across the community.
+
+## What are Nuclei templates?
+
+A Nuclei template is a structured YAML file that describes:
+
+- **What to check**: Target systems, endpoints, or services
+- **How to check**: HTTP requests, DNS queries, TCP connections, etc.
+- **What to match**: Response patterns indicating vulnerabilities
+- **What to extract**: Useful information from responses
+
+## Why write templates?
+
+<CardGroup cols={2}>
+  <Card title="Share discoveries" icon="users">
+    Contribute templates to help the security community detect vulnerabilities across all environments
+  </Card>
+  <Card title="Automate detection" icon="robot">
+    Convert manual security testing into automated, repeatable checks
+  </Card>
+  <Card title="Zero false positives" icon="bullseye">
+    Write precise detection logic that simulates real-world exploitation conditions
+  </Card>
+  <Card title="Protocol flexibility" icon="network-wired">
+    Support for HTTP, DNS, TCP, SSL, WebSocket, WHOIS, JavaScript, and more
+  </Card>
+</CardGroup>
+
+## Template anatomy
+
+Every Nuclei template consists of three main sections:
+
+### 1. Identification
+
+```yaml
+id: git-config-exposure
+```
+
+A unique identifier for the template using lowercase with hyphens.
+
+### 2. Metadata
+
+```yaml
+info:
+  name: Git Config File Exposure
+  author: pdteam
+  severity: medium
+  description: Detects exposed .git/config files on web servers
+  tags: git,exposure,config
+```
+
+Descriptive information about what the template detects.
+
+### 3. Protocol requests
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+```
+
+The actual detection logic using one or more protocol types.
+
+## Simple example
+
+Here's a complete template that detects exposed Git configuration files:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: pdteam
+  severity: medium
+  description: Checks for exposed .git/config files
+  tags: git,exposure
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      
+      - type: status
+        status:
+          - 200
+```
+
+## Template execution flow
+
+<Steps>
+  <Step title="Template loading">
+    Nuclei parses and validates the YAML template
+  </Step>
+  <Step title="Request generation">
+    Protocol-specific requests are built using template variables
+  </Step>
+  <Step title="Request execution">
+    Requests are sent to target systems
+  </Step>
+  <Step title="Response matching">
+    Matchers evaluate responses for vulnerability indicators
+  </Step>
+  <Step title="Data extraction">
+    Extractors pull relevant information from matched responses
+  </Step>
+  <Step title="Result reporting">
+    Findings are formatted and output to configured destinations
+  </Step>
+</Steps>
+
+## Template types
+
+Nuclei supports various template types:
+
+<AccordionGroup>
+  <Accordion title="Single protocol templates">
+    Use a single protocol (HTTP, DNS, etc.) to perform checks. Most common template type.
+  </Accordion>
+  <Accordion title="Multi-protocol templates">
+    Combine multiple protocols in a single template for complex detection scenarios.
+  </Accordion>
+  <Accordion title="Workflow templates">
+    Chain multiple templates together with conditional logic for multi-step attacks.
+  </Accordion>
+  <Accordion title="Self-contained templates">
+    Include complete URLs without requiring external input, useful for specific targets.
+  </Accordion>
+</AccordionGroup>
+
+## Template capabilities
+
+### Dynamic values
+
+Templates support dynamic value generation:
+
+- **Variables**: Define reusable values with DSL functions
+- **Payloads**: Iterate over lists of values for fuzzing
+- **Helper functions**: Use built-in functions for encoding, hashing, etc.
+- **Extractors**: Capture data from responses for use in subsequent requests
+
+### Advanced features
+
+- **Multi-step requests**: Chain requests with data passing
+- **Conditional logic**: Control execution based on previous results
+- **Race conditions**: Test for timing vulnerabilities
+- **Fuzzing**: Automated parameter injection
+
+## Getting help
+
+<CardGroup cols={2}>
+  <Card title="Template examples" icon="code" href="https://github.com/projectdiscovery/nuclei-templates">
+    Browse thousands of community templates
+  </Card>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Get help from template authors
+  </Card>
+  <Card title="Template validator" icon="check-circle">
+    Use `nuclei -validate` to check your templates
+  </Card>
+  <Card title="Template editor" icon="pencil">
+    VS Code extensions available for syntax highlighting
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={3}>
+  <Card title="Syntax overview" icon="book" href="/templates/syntax-overview">
+    Learn YAML structure and conventions
+  </Card>
+  <Card title="Write your first template" icon="rocket" href="/templates/writing-first-template">
+    Step-by-step tutorial
+  </Card>
+  <Card title="Protocol types" icon="network-wired" href="/templates/protocols/http">
+    Explore available protocols
+  </Card>
+</CardGroup>

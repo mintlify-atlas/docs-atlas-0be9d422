@@ -1,0 +1,332 @@
+---
+title: Installation
+description: Install Nuclei on your machine using Go, binary releases, or package managers
+---
+
+## System requirements
+
+<Info>
+  Nuclei requires **Go 1.24.2 or later** when installing from source. For binary installations, no additional dependencies are required.
+</Info>
+
+Before installing Nuclei, ensure your system meets the following requirements:
+
+- **Go 1.24.2+** (for installation from source)
+- **Operating system**: Linux, macOS, or Windows
+- **Network access** to download templates
+
+## Installation methods
+
+<Tabs>
+  <Tab title="Go">
+    ### Install with Go
+
+    The recommended way to install Nuclei is using Go. This ensures you always have the latest version.
+
+    <Steps>
+      <Step title="Install Go">
+        If you don't have Go installed, download it from [go.dev](https://go.dev/dl/)
+      </Step>
+      
+      <Step title="Install Nuclei">
+        Run the following command to install Nuclei:
+        
+        ```bash
+        go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        ```
+        
+        This will download, compile, and install the Nuclei binary to your `$GOPATH/bin` directory.
+      </Step>
+      
+      <Step title="Verify installation">
+        Verify that Nuclei is installed correctly:
+        
+        ```bash
+        nuclei -version
+        ```
+        
+        You should see output similar to:
+        
+        ```
+        Nuclei Engine Version: v3.x.x
+        ```
+      </Step>
+    </Steps>
+
+    <Note>
+      Make sure `$GOPATH/bin` is in your system's `PATH` to run Nuclei from anywhere.
+    </Note>
+  </Tab>
+
+  <Tab title="Binary releases">
+    ### Download binary releases
+
+    Pre-compiled binaries are available for all major platforms.
+
+    <Steps>
+      <Step title="Download the binary">
+        Visit the [Nuclei releases page](https://github.com/projectdiscovery/nuclei/releases) and download the appropriate binary for your operating system:
+        
+        - **Linux**: `nuclei_<version>_linux_amd64.zip`
+        - **macOS**: `nuclei_<version>_macOS_amd64.zip` or `nuclei_<version>_macOS_arm64.zip`
+        - **Windows**: `nuclei_<version>_windows_amd64.zip`
+      </Step>
+      
+      <Step title="Extract the archive">
+        Extract the downloaded archive:
+        
+        ```bash
+        unzip nuclei_<version>_<os>_<arch>.zip
+        ```
+      </Step>
+      
+      <Step title="Move to PATH">
+        Move the binary to a directory in your PATH:
+        
+        ```bash
+        # Linux/macOS
+        sudo mv nuclei /usr/local/bin/
+        
+        # Make it executable
+        chmod +x /usr/local/bin/nuclei
+        ```
+      </Step>
+      
+      <Step title="Verify installation">
+        Verify the installation:
+        
+        ```bash
+        nuclei -version
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Package managers">
+    ### Install with package managers
+
+    <AccordionGroup>
+      <Accordion title="Homebrew (macOS/Linux)">
+        Install Nuclei using Homebrew:
+        
+        ```bash
+        brew install nuclei
+        ```
+        
+        Verify the installation:
+        
+        ```bash
+        nuclei -version
+        ```
+      </Accordion>
+      
+      <Accordion title="Docker">
+        Run Nuclei in a Docker container:
+        
+        ```bash
+        docker pull projectdiscovery/nuclei:latest
+        ```
+        
+        Run a scan:
+        
+        ```bash
+        docker run -it projectdiscovery/nuclei:latest -u https://example.com
+        ```
+        
+        <Note>
+          When using Docker, you may need to mount volumes to access custom templates or save results.
+        </Note>
+      </Accordion>
+      
+      <Accordion title="APT (Debian/Ubuntu)">
+        Add the ProjectDiscovery repository and install:
+        
+        ```bash
+        # Add repository
+        echo "deb [trusted=yes] https://apt.fury.io/projectdiscovery/ /" | sudo tee /etc/apt/sources.list.d/projectdiscovery.list
+        
+        # Update and install
+        sudo apt update
+        sudo apt install nuclei
+        ```
+      </Accordion>
+      
+      <Accordion title="Snap (Linux)">
+        Install using Snap:
+        
+        ```bash
+        sudo snap install nuclei
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Tab>
+
+  <Tab title="From source">
+    ### Build from source
+
+    For developers who want to build Nuclei from source:
+
+    <Steps>
+      <Step title="Clone the repository">
+        ```bash
+        git clone https://github.com/projectdiscovery/nuclei.git
+        cd nuclei
+        ```
+      </Step>
+      
+      <Step title="Build the binary">
+        ```bash
+        make build
+        ```
+        
+        The compiled binary will be available in the `bin/` directory.
+      </Step>
+      
+      <Step title="Install the binary">
+        ```bash
+        sudo mv bin/nuclei /usr/local/bin/
+        ```
+      </Step>
+      
+      <Step title="Verify installation">
+        ```bash
+        nuclei -version
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Post-installation setup
+
+### Download templates
+
+After installation, download the community templates:
+
+```bash
+nuclei -update-templates
+```
+
+This command downloads the latest Nuclei templates from the [nuclei-templates repository](https://github.com/projectdiscovery/nuclei-templates) to your local system.
+
+<Note>
+  Templates are automatically updated when you run Nuclei, unless you disable automatic updates with the `-duc` flag.
+</Note>
+
+### Check template version
+
+To see which version of templates you have installed:
+
+```bash
+nuclei -templates-version
+```
+
+Example output:
+
+```
+Public nuclei-templates version: v10.2.3 (/home/user/nuclei-templates)
+```
+
+### Configure API authentication (optional)
+
+To use cloud features and AI-powered template generation, configure your ProjectDiscovery API key:
+
+```bash
+nuclei -auth
+```
+
+Follow the prompts to authenticate with your ProjectDiscovery account.
+
+<Info>
+  Cloud features are optional. Nuclei works fully offline without authentication.
+</Info>
+
+## Update Nuclei
+
+Keep Nuclei up to date to get the latest features and bug fixes:
+
+<CodeGroup>
+```bash Go installation
+# Update Nuclei engine
+nuclei -update
+
+# Update templates
+nuclei -update-templates
+```
+
+```bash Homebrew
+# Update Nuclei
+brew upgrade nuclei
+
+# Update templates
+nuclei -update-templates
+```
+
+```bash Docker
+# Pull latest image
+docker pull projectdiscovery/nuclei:latest
+```
+</CodeGroup>
+
+<Warning>
+  **Important**: This project is in active development. Always review the [release changelog](https://github.com/projectdiscovery/nuclei/releases) before updating to avoid breaking changes.
+</Warning>
+
+## Verify your installation
+
+Run a quick test scan to verify everything is working:
+
+```bash
+nuclei -u https://scanme.sh -tags ssl
+```
+
+If you see output showing template execution, your installation is successful!
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    If you get a "command not found" error, ensure that:
+    
+    - The binary is in your `PATH`
+    - For Go installations, `$GOPATH/bin` is in your `PATH`
+    - You have execute permissions on the binary
+  </Accordion>
+  
+  <Accordion title="Permission denied">
+    If you encounter permission errors:
+    
+    ```bash
+    chmod +x /path/to/nuclei
+    ```
+    
+    Or use `sudo` when moving the binary to system directories.
+  </Accordion>
+  
+  <Accordion title="Template download fails">
+    If template downloads fail:
+    
+    - Check your internet connection
+    - Verify you can access GitHub (templates are hosted there)
+    - Try using a proxy if needed: `nuclei -proxy http://proxy:port`
+  </Accordion>
+  
+  <Accordion title="Go version error">
+    If you see Go version errors during installation:
+    
+    - Update Go to version 1.24.2 or later
+    - Download from [go.dev/dl](https://go.dev/dl/)
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+Now that you have Nuclei installed, continue to the quickstart guide:
+
+<Card
+  title="Quickstart guide"
+  icon="rocket"
+  href="/quickstart"
+>
+  Learn how to run your first scan and master the basics
+</Card>

@@ -1,0 +1,622 @@
+---
+title: Template signing
+description: Sign and verify Nuclei templates for security and authenticity
+---
+
+Template signing provides cryptographic verification for Nuclei templates, especially those using the code protocol. Digital signatures ensure template authenticity and prevent unauthorized modifications.
+
+## Why sign templates?
+
+Template signing addresses critical security concerns:
+
+<CardGroup cols={2}>
+  <Card title="Code execution safety" icon="shield-check">
+    Code protocol templates execute arbitrary code. Signatures verify trusted authorship.
+  </Card>
+  <Card title="Tamper detection" icon="file-shield">
+    Detect any modifications to templates after signing
+  </Card>
+  <Card title="Author verification" icon="user-check">
+    Confirm template origin and chain of trust
+  </Card>
+  <Card title="Community trust" icon="users">
+    Build confidence in shared templates through cryptographic proof
+  </Card>
+</CardGroup>
+
+## When signatures are required
+
+<Warning>
+  Templates using the **code protocol** must be signed before execution. This includes templates with `code:` or file imports in sensitive fields.
+</Warning>
+
+Examples requiring signatures:
+
+```yaml
+# Code protocol - requires signing
+id: bash-command-check
+
+info:
+  name: Bash Command Check
+  author: pdteam
+  severity: info
+
+code:
+  - engine: bash
+    source: |
+      #!/bin/bash
+      echo "Checking system"
+```
+
+```yaml
+# JavaScript code - requires signing
+id: cloud-check
+
+info:
+  name: Cloud Resource Check
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      const aws = require('aws-sdk');
+      // Cloud check logic
+```
+
+## Signature mechanism
+
+Nuclei uses ECDSA (Elliptic Curve Digital Signature Algorithm) with SHA-256 for template signing.
+
+### Signature format
+
+Signatures are appended to templates as comments:
+
+```yaml
+id: example-template
+
+info:
+  name: Example Template
+  author: pdteam
+  severity: info
+
+code:
+  - engine: bash
+    source: echo "test"
+
+# digest: 4a5e6c7d8e9f0a1b2c3d4e5f6a7b8c9d:a1b2c3d4e5f6
+```
+
+Signature components (from `pkg/templates/signer/tmpl_signer.go:24-25`):
+
+```
+# digest: <hex-encoded-signature>:<user-fragment>
+```
+
+- **Signature**: ECDSA signature encoded as hex
+- **User fragment**: MD5 hash of public key for re-signing verification
+
+## Setting up signing
+
+### Generate signing keys
+
+On first use, Nuclei generates a key pair automatically:
+
+```bash
+nuclei -sign -t template.yaml
+```
+
+<Steps>
+  <Step title="Key generation prompt">
+    Enter your user or organization name:
+    
+    ```
+    [*] Enter User/Organization Name (exit to abort): ProjectDiscovery
+    ```
+  </Step>
+  
+  <Step title="Set passphrase">
+    Optionally protect the private key with a passphrase:
+    
+    ```
+    [*] Enter passphrase (exit to abort): ********
+    [*] Enter same passphrase again: ********
+    ```
+    
+    <Tip>
+      Press Enter without input to skip passphrase protection.
+    </Tip>
+  </Step>
+  
+  <Step title="Keys saved">
+    Keys are saved to the configuration directory:
+    
+    ```
+    ~/.config/nuclei/keys/nuclei-user.crt
+    ~/.config/nuclei/keys/nuclei-user-private-key.pem
+    ```
+  </Step>
+</Steps>
+
+### Key generation internals
+
+From `pkg/templates/signer/handler.go:132-170`:
+
+```go
+func (k *KeyHandler) GenerateKeyPair() {
+    // Generate ECDSA P-256 private key
+    privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+    
+    // Create self-signed certificate
+    cert := x509.Certificate{
+        Subject: pkix.Name{
+            CommonName: identifier,  // User/Org name
+        },
+        SignatureAlgorithm: x509.ECDSAWithSHA256,
+        NotAfter: notBefore.Add(4 * 365 * 24 * time.Hour),  // 4 years
+    }
+}
+```
+
+<Note>
+  Certificates are self-signed and valid for 4 years. They use the P-256 elliptic curve.
+</Note>
+
+## Signing templates
+
+### Sign a template
+
+Use the `-sign` flag to sign templates:
+
+```bash
+nuclei -sign -t template.yaml
+```
+
+<Tabs>
+  <Tab title="Single template">
+    Sign a specific template:
+    
+    ```bash
+    nuclei -sign -t code-template.yaml
+    ```
+  </Tab>
+  
+  <Tab title="Multiple templates">
+    Sign all templates in a directory:
+    
+    ```bash
+    nuclei -sign -t ./templates/
+    ```
+  </Tab>
+  
+  <Tab title="With custom keys">
+    Use specific certificate and private key:
+    
+    ```bash
+    export NUCLEI_USER_CERTIFICATE=/path/to/cert.crt
+    export NUCLEI_USER_PRIVATE_KEY=/path/to/key.pem
+    nuclei -sign -t template.yaml
+    ```
+  </Tab>
+</Tabs>
+
+### Signing process
+
+The signing process (from `pkg/templates/template_sign.go:59-88`):
+
+<Steps>
+  <Step title="Load template">
+    Parse the template and resolve file imports
+  </Step>
+  
+  <Step title="Extract existing signature">
+    Remove any existing signature from template content
+  </Step>
+  
+  <Step title="Include file imports">
+    Append contents of imported files to signing data:
+    
+    ```go
+    for _, file := range tmpl.GetFileImports() {
+        bin, _ := os.ReadFile(file)
+        buff.Write(bin)
+    }
+    ```
+  </Step>
+  
+  <Step title="Generate signature">
+    Create ECDSA signature using SHA-256 hash:
+    
+    ```go
+    dataHash := sha256.Sum256(data)
+    ecdsaSignature, err := ecdsa.SignASN1(rand.Reader, privateKey, dataHash[:])
+    ```
+  </Step>
+  
+  <Step title="Append signature">
+    Add signature as a comment to the template file
+  </Step>
+</Steps>
+
+### File imports in signatures
+
+When templates reference external files, their contents are included in the signature:
+
+```yaml
+code:
+  - engine: bash
+    source: script.sh  # File content included in signature
+```
+
+<Note>
+  The signing process loads referenced files and includes them in the signature calculation (see `pkg/templates/signer/tmpl_signer.go:98-106`).
+</Note>
+
+## Verifying signatures
+
+### Automatic verification
+
+Nuclei automatically verifies template signatures during execution:
+
+```bash
+nuclei -t signed-template.yaml -u https://example.com
+```
+
+For code protocol templates:
+
+```bash
+# Requires code protocol enabled
+nuclei -t signed-code-template.yaml -u https://example.com -code
+```
+
+### Verification process
+
+From `pkg/templates/signer/tmpl_signer.go:131-165`:
+
+<Steps>
+  <Step title="Extract signature">
+    Parse the signature comment from template:
+    
+    ```go
+    signature, content := ExtractSignatureAndContent(data)
+    ```
+  </Step>
+  
+  <Step title="Decode signature">
+    Convert hex-encoded signature to bytes
+  </Step>
+  
+  <Step title="Normalize content">
+    Remove `\r\n` line endings for cross-platform compatibility:
+    
+    ```go
+    content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+    ```
+  </Step>
+  
+  <Step title="Include file imports">
+    Load and append imported file contents (same as signing)
+  </Step>
+  
+  <Step title="Verify ECDSA signature">
+    Validate signature against public key:
+    
+    ```go
+    dataHash := sha256.Sum256(data)
+    verified := ecdsa.VerifyASN1(publicKey, dataHash[:], signature)
+    ```
+  </Step>
+</Steps>
+
+### Verification failures
+
+<Warning>
+  Templates with invalid signatures cannot be executed when code protocol is enabled.
+</Warning>
+
+Common verification failures:
+
+<AccordionGroup>
+  <Accordion title="no signature found">
+    **Cause**: Code protocol template lacks signature.
+    
+    **Solution**: Sign the template:
+    ```bash
+    nuclei -sign -t template.yaml
+    ```
+  </Accordion>
+  
+  <Accordion title="signature must be at the end">
+    **Cause**: Signature not in expected format or location.
+    
+    **Solution**: Ensure signature is the last line and starts with `# digest:`.
+  </Accordion>
+  
+  <Accordion title="Template has been tampered">
+    **Cause**: Content modified after signing.
+    
+    **Solution**: Re-sign the template after making changes.
+  </Accordion>
+  
+  <Accordion title="Invalid passphrase">
+    **Cause**: Incorrect passphrase for encrypted private key.
+    
+    **Solution**: Enter the correct passphrase when prompted.
+  </Accordion>
+</AccordionGroup>
+
+## Re-signing templates
+
+### Re-signing restrictions
+
+<Warning>
+  Code protocol templates can only be re-signed by the original signer. This prevents malicious modifications.
+</Warning>
+
+From `pkg/templates/signer/tmpl_signer.go:77-95`:
+
+```go
+if tmpl.HasCodeProtocol() {
+    if len(existingSignature) > 0 {
+        // Extract user fragment from existing signature
+        fragment := arr[2]
+        
+        // Verify current signer matches original signer
+        if fragment != t.GetUserFragment() {
+            return "", errkit.New("re-signing code templates are not allowed for security reasons.")
+        }
+    }
+}
+```
+
+### User fragment
+
+The user fragment identifies the signer using an MD5 hash of their public key:
+
+```go
+// From pkg/templates/signer/tmpl_signer.go:62-70
+func (t *TemplateSigner) GetUserFragment() string {
+    if t.handler.ecdsaPubKey != nil {
+        hashed := md5.Sum(t.handler.ecdsaPubKey.X.Bytes())
+        return fmt.Sprintf("%x", hashed)
+    }
+}
+```
+
+## Custom certificate management
+
+### Environment variables
+
+Override default certificate locations:
+
+```bash
+# Point to custom certificate
+export NUCLEI_USER_CERTIFICATE=/path/to/custom.crt
+
+# Point to custom private key
+export NUCLEI_USER_PRIVATE_KEY=/path/to/custom-key.pem
+
+# Or provide file paths directly
+export NUCLEI_USER_CERTIFICATE=/home/user/certs/nuclei.crt
+export NUCLEI_USER_PRIVATE_KEY=/home/user/certs/nuclei-key.pem
+```
+
+### Programmatic signing
+
+Use the signing API programmatically:
+
+```go
+import (
+    "github.com/projectdiscovery/nuclei/v3/pkg/templates"
+    "github.com/projectdiscovery/nuclei/v3/pkg/templates/signer"
+)
+
+// Create signer from files
+templateSigner, err := signer.NewTemplateSignerFromFiles(
+    "cert.crt",
+    "private-key.pem",
+)
+
+// Sign template
+err = templates.SignTemplate(templateSigner, "template.yaml")
+```
+
+## Certificate details
+
+From `pkg/templates/signer/handler.go:23-30`:
+
+```go
+const (
+    CertType           = "PD NUCLEI USER CERTIFICATE"
+    PrivateKeyType     = "PD NUCLEI USER PRIVATE KEY"
+    CertFilename       = "nuclei-user.crt"
+    PrivateKeyFilename = "nuclei-user-private-key.pem"
+)
+```
+
+Certificate structure:
+
+- **Type**: X.509 certificate
+- **Algorithm**: ECDSA with SHA-256
+- **Curve**: P-256 (secp256r1)
+- **Validity**: 4 years from generation
+- **Subject**: Common Name = User/Organization identifier
+
+## Security considerations
+
+### Private key protection
+
+<Warning>
+  **Never share or commit private keys.** They should remain secure on your local system.
+</Warning>
+
+<Steps>
+  <Step title="Use passphrase protection">
+    Encrypt private keys with a strong passphrase:
+    
+    ```bash
+    # Passphrase prompted during key generation
+    [*] Enter passphrase: ********
+    ```
+  </Step>
+  
+  <Step title="Restrict file permissions">
+    Ensure keys have appropriate permissions:
+    
+    ```bash
+    chmod 600 ~/.config/nuclei/keys/nuclei-user-private-key.pem
+    chmod 644 ~/.config/nuclei/keys/nuclei-user.crt
+    ```
+  </Step>
+  
+  <Step title="Backup keys securely">
+    Store backup copies in a secure location (not in version control)
+  </Step>
+</Steps>
+
+### Template verification in workflows
+
+Always verify signatures in production:
+
+```yaml .github/workflows/scan.yml
+- name: Run Nuclei Scan
+  run: |
+    # Signatures verified automatically
+    nuclei -t signed-templates/ -u ${{ secrets.TARGET_URL }} -code
+```
+
+## Testing signature functionality
+
+Example test cases from `pkg/templates/signer/tmpl_signer_test.go:36-90`:
+
+<Tabs>
+  <Tab title="Sign and verify">
+    ```go
+    // Sign template
+    signature, err := signer.Sign(data, tmpl)
+    signedData := append(data, []byte("\n"+signature)...)
+    
+    // Verify signature
+    verified, err := signer.Verify(signedData, tmpl)
+    // verified == true
+    ```
+  </Tab>
+  
+  <Tab title="Detect tampering">
+    ```go
+    // Sign template
+    signature, _ := signer.Sign(data, tmpl)
+    signedData := append(data, []byte("\n"+signature)...)
+    
+    // Tamper with content
+    tamperedData := append([]byte("# Tampered\n"), signedData...)
+    
+    // Verification fails
+    verified, _ := signer.Verify(tamperedData, tmpl)
+    // verified == false
+    ```
+  </Tab>
+  
+  <Tab title="Code protocol enforcement">
+    ```go
+    // Code protocol template
+    tmpl := &mockSignableTemplate{hasCode: true}
+    
+    // Can only be re-signed by original signer
+    signature, err := signer.Sign(alreadySignedData, tmpl)
+    // err: "re-signing code templates are not allowed"
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Keys not found">
+    **Issue**: `nuclei user certificate not found`
+    
+    **Solution**: Generate keys first:
+    ```bash
+    nuclei -sign -t template.yaml
+    # Follow prompts to generate keys
+    ```
+  </Accordion>
+  
+  <Accordion title="Passphrase prompt on every sign">
+    **Issue**: Private key is encrypted.
+    
+    **Solution**: Either enter passphrase each time or regenerate without passphrase.
+  </Accordion>
+  
+  <Accordion title="Cannot sign workflow templates">
+    **Issue**: `given filePath is not a template`
+    
+    **Solution**: Workflow templates (templates with `workflows:` section) cannot be signed. Only single protocol templates support signing.
+  </Accordion>
+  
+  <Accordion title="Re-signing fails with security error">
+    **Issue**: `re-signing code templates are not allowed for security reasons`
+    
+    **Solution**: You're trying to re-sign a code template originally signed by someone else. Only the original signer can re-sign code templates.
+  </Accordion>
+</AccordionGroup>
+
+## Advanced usage
+
+### Skip key generation
+
+For CI/CD environments where keys should be pre-configured:
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/templates/signer"
+
+// Skip automatic key generation
+signer.SkipGeneratingKeys = true
+```
+
+### Allow local file access
+
+For signing templates that reference local files:
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/templates"
+
+// Enable local file access for signing
+templates.TemplateSignerLFA()
+```
+
+## Best practices
+
+<Check>
+  ✓ Always sign code protocol templates before distribution
+  
+  ✓ Protect private keys with passphrases
+  
+  ✓ Store keys securely, never in version control
+  
+  ✓ Verify signatures in production environments
+  
+  ✓ Use environment variables for custom certificate paths
+  
+  ✓ Test signed templates thoroughly before sharing
+  
+  ✓ Document signing requirements for contributors
+  
+  ✓ Backup keys in secure, encrypted storage
+</Check>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing templates" icon="code-pull-request" href="/templates/contributing">
+    Learn how to contribute signed templates
+  </Card>
+  <Card title="Code protocol" icon="code" href="/templates/protocols/code">
+    Understand code protocol templates
+  </Card>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Follow template development guidelines
+  </Card>
+  <Card title="Validation" icon="check-circle" href="/templates/validation">
+    Validate templates before signing
+  </Card>
+</CardGroup>

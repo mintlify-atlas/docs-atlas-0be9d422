@@ -1,0 +1,146 @@
+---
+title: Introduction to Nuclei
+description: A modern, high-performance vulnerability scanner that leverages YAML-based templates for customizable vulnerability detection
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/nuclei-cover-image.png"
+  alt="Nuclei Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/nuclei-cover-image.png"
+  alt="Nuclei Hero Dark"
+/>
+
+## What is Nuclei?
+
+Nuclei is a modern, high-performance vulnerability scanner that leverages simple YAML-based templates. It empowers you to design custom vulnerability detection scenarios that mimic real-world conditions, leading to zero false positives.
+
+<CardGroup cols={2}>
+  <Card
+    title="Simple YAML templates"
+    icon="file-code"
+  >
+    Create and customize vulnerability templates with an easy-to-learn YAML format
+  </Card>
+  <Card
+    title="Community-driven"
+    icon="users"
+  >
+    Contributed by thousands of security professionals to tackle trending vulnerabilities
+  </Card>
+  <Card
+    title="Ultra-fast scanning"
+    icon="bolt"
+  >
+    Parallel scan processing and request clustering for maximum performance
+  </Card>
+  <Card
+    title="Multi-protocol support"
+    icon="network-wired"
+  >
+    Supports TCP, DNS, HTTP, SSL, WHOIS, JavaScript, Code and more protocols
+  </Card>
+</CardGroup>
+
+## Why Nuclei?
+
+Traditional vulnerability scanners were built decades ago. They are closed-source, incredibly slow, and vendor-driven. Today's attackers are mass exploiting newly released CVEs across the internet within days, unlike the years it used to take. This shift requires a completely different approach to tackling trending exploits on the internet.
+
+<Note>
+  Nuclei reduces false positives by simulating real-world steps to verify a vulnerability, rather than relying on simple signature matching.
+</Note>
+
+### Key benefits
+
+- **Reduce false positives** - Simulate real-world steps to verify vulnerabilities
+- **Integrate into CI/CD** - Perfect for vulnerability detection and regression testing in pipelines
+- **Extensive integrations** - Connect with Jira, Splunk, GitHub, Elastic, GitLab and more
+- **Open source** - Fully transparent, customizable, and community-driven
+- **Rapid updates** - Stay ahead with templates updated daily to cover the latest vulnerabilities
+
+## Use cases
+
+Nuclei is now used and contributed by Fortune 500 enterprises, government agencies, and universities for various security use cases:
+
+<AccordionGroup>
+  <Accordion title="Vulnerability assessment">
+    Scan web applications, networks, and infrastructure for known CVEs and security misconfigurations using community templates or custom detection rules.
+  </Accordion>
+  
+  <Accordion title="Continuous security testing">
+    Integrate Nuclei into CI/CD pipelines to automatically detect vulnerabilities during development and deployment phases.
+  </Accordion>
+  
+  <Accordion title="Attack surface monitoring">
+    Continuously monitor your external attack surface for new vulnerabilities, exposed services, and security issues.
+  </Accordion>
+  
+  <Accordion title="Security research">
+    Create custom templates to identify and validate novel vulnerability patterns and security research findings.
+  </Accordion>
+  
+  <Accordion title="Penetration testing">
+    Accelerate penetration testing engagements with automated vulnerability detection across multiple protocols.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  This project is in active development. Expect breaking changes with releases. Review the release changelog before updating.
+</Warning>
+
+## Next steps
+
+Get started with Nuclei in minutes:
+
+<CardGroup cols={2}>
+  <Card
+    title="Install Nuclei"
+    icon="download"
+    href="/installation"
+  >
+    Install Nuclei using Go, package managers, or binary releases
+  </Card>
+  <Card
+    title="Quick start guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Run your first scan and learn the basics
+  </Card>
+  <Card
+    title="Key features"
+    icon="star"
+    href="/key-features"
+  >
+    Explore Nuclei's powerful capabilities
+  </Card>
+  <Card
+    title="Template library"
+    icon="book"
+    href="https://github.com/projectdiscovery/nuclei-templates"
+  >
+    Browse thousands of community templates
+  </Card>
+</CardGroup>
+
+## Community and support
+
+<CardGroup cols={2}>
+  <Card
+    title="Join Discord"
+    icon="discord"
+    href="https://discord.gg/projectdiscovery"
+  >
+    Connect with the ProjectDiscovery community
+  </Card>
+  <Card
+    title="GitHub repository"
+    icon="github"
+    href="https://github.com/projectdiscovery/nuclei"
+  >
+    Star the repo and contribute to the project
+  </Card>
+</CardGroup>

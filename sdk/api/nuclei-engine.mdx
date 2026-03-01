@@ -1,0 +1,736 @@
+---
+title: NucleiEngine API
+description: Complete API reference for the NucleiEngine type and its methods
+---
+
+The `NucleiEngine` is the core component of the Nuclei SDK that orchestrates vulnerability scanning.
+
+## Types
+
+### NucleiEngine
+
+Main engine instance for running Nuclei scans.
+
+```go
+type NucleiEngine struct {
+	// Contains filtered or unexported fields
+}
+```
+
+### ThreadSafeNucleiEngine
+
+Thread-safe variant for concurrent scanning.
+
+```go
+type ThreadSafeNucleiEngine struct {
+	// Contains filtered or unexported fields
+}
+```
+
+## Constructors
+
+### NewNucleiEngine
+
+Creates a new Nuclei engine instance.
+
+```go
+func NewNucleiEngine(options ...NucleiSDKOptions) (*NucleiEngine, error)
+```
+
+<ParamField path="options" type="...NucleiSDKOptions">
+  Variable number of configuration options
+</ParamField>
+
+<ResponseField name="return" type="*NucleiEngine, error">
+  Returns a new NucleiEngine instance or an error
+</ResponseField>
+
+**Example:**
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{Severity: "critical"}),
+)
+if err != nil {
+	panic(err)
+}
+defer ne.Close()
+```
+
+<Note>
+  This function uses `context.Background()` internally. Use `NewNucleiEngineCtx` for custom context.
+</Note>
+
+### NewNucleiEngineCtx
+
+Creates a new Nuclei engine instance with a custom context.
+
+```go
+func NewNucleiEngineCtx(ctx context.Context, options ...NucleiSDKOptions) (*NucleiEngine, error)
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for controlling engine lifecycle
+</ParamField>
+
+<ParamField path="options" type="...NucleiSDKOptions">
+  Variable number of configuration options
+</ParamField>
+
+<ResponseField name="return" type="*NucleiEngine, error">
+  Returns a new NucleiEngine instance or an error
+</ResponseField>
+
+**Example:**
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+defer cancel()
+
+ne, err := nuclei.NewNucleiEngineCtx(ctx,
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{Tags: []string{"oast"}}),
+)
+```
+
+### NewThreadSafeNucleiEngine
+
+Creates a thread-safe Nuclei engine for concurrent scanning.
+
+```go
+func NewThreadSafeNucleiEngine(options ...NucleiSDKOptions) (*ThreadSafeNucleiEngine, error)
+```
+
+<ParamField path="options" type="...NucleiSDKOptions">
+  Variable number of configuration options
+</ParamField>
+
+<ResponseField name="return" type="*ThreadSafeNucleiEngine, error">
+  Returns a new ThreadSafeNucleiEngine instance or an error
+</ResponseField>
+
+**Example:**
+
+```go
+ne, err := nuclei.NewThreadSafeNucleiEngine()
+if err != nil {
+	panic(err)
+}
+defer ne.Close()
+```
+
+<Note>
+  Deprecated: Use `NewThreadSafeNucleiEngineCtx` instead.
+</Note>
+
+### NewThreadSafeNucleiEngineCtx
+
+Creates a thread-safe Nuclei engine with a custom context.
+
+```go
+func NewThreadSafeNucleiEngineCtx(ctx context.Context, options ...NucleiSDKOptions) (*ThreadSafeNucleiEngine, error)
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for controlling engine lifecycle
+</ParamField>
+
+<ParamField path="options" type="...NucleiSDKOptions">
+  Variable number of configuration options
+</ParamField>
+
+<ResponseField name="return" type="*ThreadSafeNucleiEngine, error">
+  Returns a new ThreadSafeNucleiEngine instance or an error
+</ResponseField>
+
+**Example:**
+
+```go
+ctx := context.Background()
+ne, err := nuclei.NewThreadSafeNucleiEngineCtx(ctx)
+```
+
+## Core methods
+
+### LoadTargets
+
+Loads target URLs, domains, or IPs into the engine.
+
+```go
+func (e *NucleiEngine) LoadTargets(targets []string, probeNonHttp bool)
+```
+
+<ParamField path="targets" type="[]string" required>
+  List of target URLs, domains, or IP addresses
+</ParamField>
+
+<ParamField path="probeNonHttp" type="bool" required>
+  Whether to probe non-HTTP/HTTPS targets to detect web services
+</ParamField>
+
+**Example:**
+
+```go
+// Load without probing
+ne.LoadTargets([]string{"scanme.sh", "example.com"}, false)
+
+// Load with HTTP probing
+ne.LoadTargets([]string{"192.168.1.1", "example.com"}, true)
+```
+
+### LoadTargetsFromReader
+
+Loads targets from an io.Reader (e.g., file).
+
+```go
+func (e *NucleiEngine) LoadTargetsFromReader(reader io.Reader, probeNonHttp bool)
+```
+
+<ParamField path="reader" type="io.Reader" required>
+  Reader containing targets (one per line)
+</ParamField>
+
+<ParamField path="probeNonHttp" type="bool" required>
+  Whether to probe non-HTTP/HTTPS targets
+</ParamField>
+
+**Example:**
+
+```go
+file, _ := os.Open("targets.txt")
+defer file.Close()
+ne.LoadTargetsFromReader(file, false)
+```
+
+### LoadTargetsWithHttpData
+
+Loads targets with HTTP request data from various file formats.
+
+```go
+func (e *NucleiEngine) LoadTargetsWithHttpData(filePath string, filemode string) error
+```
+
+<ParamField path="filePath" type="string" required>
+  Path to the file containing HTTP data
+</ParamField>
+
+<ParamField path="filemode" type="string" required>
+  File format: "burp", "openapi", "swagger", or "proxify"
+</ParamField>
+
+<ResponseField name="return" type="error">
+  Returns error if file cannot be loaded
+</ResponseField>
+
+**Example:**
+
+```go
+err := ne.LoadTargetsWithHttpData("burp-export.xml", "burp")
+err := ne.LoadTargetsWithHttpData("api.yaml", "openapi")
+```
+
+<Warning>
+  This method is mutually exclusive with `LoadTargets` and `LoadTargetsFromReader`.
+</Warning>
+
+### ExecuteWithCallback
+
+Executes templates against loaded targets with an optional callback.
+
+```go
+func (e *NucleiEngine) ExecuteWithCallback(callback ...func(event *output.ResultEvent)) error
+```
+
+<ParamField path="callback" type="...func(event *output.ResultEvent)">
+  Optional callback functions invoked for each result
+</ParamField>
+
+<ResponseField name="return" type="error">
+  Returns error if execution fails
+</ResponseField>
+
+**Example:**
+
+```go
+// No callback - outputs JSON to stdout
+err := ne.ExecuteWithCallback(nil)
+
+// With callback
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] %s\n", event.TemplateID, event.Host)
+})
+
+// Multiple callbacks
+err := ne.ExecuteWithCallback(callback1, callback2)
+```
+
+<Note>
+  Deprecated: Use `ExecuteCallbackWithCtx` for better context control.
+</Note>
+
+### ExecuteCallbackWithCtx
+
+Executes templates with context support and callbacks.
+
+```go
+func (e *NucleiEngine) ExecuteCallbackWithCtx(ctx context.Context, callback ...func(event *output.ResultEvent)) error
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for controlling execution lifecycle
+</ParamField>
+
+<ParamField path="callback" type="...func(event *output.ResultEvent)">
+  Optional callback functions invoked for each result
+</ParamField>
+
+<ResponseField name="return" type="error">
+  Returns error if execution fails or context is cancelled
+</ResponseField>
+
+**Example:**
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+
+err := ne.ExecuteCallbackWithCtx(ctx, func(event *output.ResultEvent) {
+	fmt.Printf("Found: %s\n", event.TemplateID)
+})
+```
+
+### Close
+
+Closes the engine and releases all resources.
+
+```go
+func (e *NucleiEngine) Close()
+```
+
+**Example:**
+
+```go
+ne, _ := nuclei.NewNucleiEngine()
+defer ne.Close() // Always defer Close
+```
+
+<Warning>
+  Always call `Close()` to prevent resource leaks.
+</Warning>
+
+## Template methods
+
+### LoadAllTemplates
+
+Loads all templates based on configured filters.
+
+```go
+func (e *NucleiEngine) LoadAllTemplates() error
+```
+
+<ResponseField name="return" type="error">
+  Returns error if templates cannot be loaded
+</ResponseField>
+
+**Example:**
+
+```go
+err := ne.LoadAllTemplates()
+if err != nil {
+	panic(err)
+}
+```
+
+<Note>
+  Templates are automatically loaded on execution if not manually loaded.
+</Note>
+
+### GetTemplates
+
+Returns all loaded templates.
+
+```go
+func (e *NucleiEngine) GetTemplates() []*templates.Template
+```
+
+<ResponseField name="return" type="[]*templates.Template">
+  Slice of loaded template objects
+</ResponseField>
+
+**Example:**
+
+```go
+templates := ne.GetTemplates()
+fmt.Printf("Loaded %d templates\n", len(templates))
+```
+
+### GetWorkflows
+
+Returns all loaded workflows.
+
+```go
+func (e *NucleiEngine) GetWorkflows() []*templates.Template
+```
+
+<ResponseField name="return" type="[]*templates.Template">
+  Slice of loaded workflow objects
+</ResponseField>
+
+**Example:**
+
+```go
+workflows := ne.GetWorkflows()
+fmt.Printf("Loaded %d workflows\n", len(workflows))
+```
+
+### ParseTemplate
+
+Parses a template from raw YAML data.
+
+```go
+func (e *NucleiEngine) ParseTemplate(data []byte) (*templates.Template, error)
+```
+
+<ParamField path="data" type="[]byte" required>
+  Raw YAML template data
+</ParamField>
+
+<ResponseField name="return" type="*templates.Template, error">
+  Parsed template or error
+</ResponseField>
+
+**Example:**
+
+```go
+templateData := []byte(`
+id: custom-template
+info:
+  name: Custom Template
+  severity: high
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+`)
+
+tmpl, err := ne.ParseTemplate(templateData)
+if err != nil {
+	panic(err)
+}
+fmt.Printf("Template verified: %v\n", tmpl.Verified)
+```
+
+### SignTemplate
+
+Signs a template using the provided signer.
+
+```go
+func (e *NucleiEngine) SignTemplate(tmplSigner *signer.TemplateSigner, data []byte) ([]byte, error)
+```
+
+<ParamField path="tmplSigner" type="*signer.TemplateSigner" required>
+  Template signer instance
+</ParamField>
+
+<ParamField path="data" type="[]byte" required>
+  Raw template data to sign
+</ParamField>
+
+<ResponseField name="return" type="[]byte, error">
+  Signed template data or error
+</ResponseField>
+
+**Example:**
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/templates/signer"
+
+tmplSigner := &signer.TemplateSigner{}
+signedData, err := ne.SignTemplate(tmplSigner, templateData)
+```
+
+## Accessor methods
+
+### GetExecuterOptions
+
+Returns the executor options used by the engine.
+
+```go
+func (e *NucleiEngine) GetExecuterOptions() *protocols.ExecutorOptions
+```
+
+<ResponseField name="return" type="*protocols.ExecutorOptions">
+  Executor options instance
+</ResponseField>
+
+**Example:**
+
+```go
+execOpts := ne.GetExecuterOptions()
+fmt.Printf("Rate limit: %d\n", execOpts.RateLimiter.GetLimit())
+```
+
+### Options
+
+Returns the Nuclei type options.
+
+```go
+func (e *NucleiEngine) Options() *types.Options
+```
+
+<ResponseField name="return" type="*types.Options">
+  Nuclei options instance
+</ResponseField>
+
+**Example:**
+
+```go
+opts := ne.Options()
+fmt.Printf("Template threads: %d\n", opts.TemplateThreads)
+```
+
+### Engine
+
+Returns the core execution engine.
+
+```go
+func (e *NucleiEngine) Engine() *core.Engine
+```
+
+<ResponseField name="return" type="*core.Engine">
+  Core engine instance
+</ResponseField>
+
+**Example:**
+
+```go
+engine := ne.Engine()
+workPool := engine.GetWorkPool()
+```
+
+### Store
+
+Returns the template store.
+
+```go
+func (e *NucleiEngine) Store() *loader.Store
+```
+
+<ResponseField name="return" type="*loader.Store">
+  Template store instance
+</ResponseField>
+
+### GetParser
+
+Returns the template parser with cache.
+
+```go
+func (e *NucleiEngine) GetParser() *templates.Parser
+```
+
+<ResponseField name="return" type="*templates.Parser">
+  Template parser instance
+</ResponseField>
+
+## Cluster methods
+
+### GetClusterTemplateIDs
+
+Returns template IDs for a given cluster ID.
+
+```go
+func (e *NucleiEngine) GetClusterTemplateIDs(clusterID string) []string
+```
+
+<ParamField path="clusterID" type="string" required>
+  Cluster identifier
+</ParamField>
+
+<ResponseField name="return" type="[]string">
+  Template IDs in the cluster, or nil if cluster doesn't exist
+</ResponseField>
+
+**Example:**
+
+```go
+templateIDs := ne.GetClusterTemplateIDs("http-get")
+fmt.Printf("Templates in cluster: %v\n", templateIDs)
+```
+
+### GetAllClusterMappings
+
+Returns all cluster mappings.
+
+```go
+func (e *NucleiEngine) GetAllClusterMappings() map[string][]string
+```
+
+<ResponseField name="return" type="map[string][]string">
+  Map of cluster IDs to template IDs, or nil if engine hasn't executed
+</ResponseField>
+
+**Example:**
+
+```go
+mappings := ne.GetAllClusterMappings()
+for clusterID, templateIDs := range mappings {
+	fmt.Printf("Cluster %s: %v\n", clusterID, templateIDs)
+}
+```
+
+## ThreadSafeNucleiEngine methods
+
+### GlobalLoadAllTemplates
+
+Loads all templates (thread-safe version).
+
+```go
+func (e *ThreadSafeNucleiEngine) GlobalLoadAllTemplates() error
+```
+
+<ResponseField name="return" type="error">
+  Returns error if templates cannot be loaded
+</ResponseField>
+
+### GlobalResultCallback
+
+Sets a global callback for all scan results.
+
+```go
+func (e *ThreadSafeNucleiEngine) GlobalResultCallback(callback func(event *output.ResultEvent))
+```
+
+<ParamField path="callback" type="func(event *output.ResultEvent)" required>
+  Callback function invoked for each result
+</ParamField>
+
+**Example:**
+
+```go
+ne.GlobalResultCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] %s\n", event.TemplateID, event.Host)
+})
+```
+
+### ExecuteNucleiWithOpts
+
+Executes scan with per-scan options (thread-safe).
+
+```go
+func (e *ThreadSafeNucleiEngine) ExecuteNucleiWithOpts(targets []string, opts ...NucleiSDKOptions) error
+```
+
+<ParamField path="targets" type="[]string" required>
+  List of targets to scan
+</ParamField>
+
+<ParamField path="opts" type="...NucleiSDKOptions">
+  Options specific to this scan
+</ParamField>
+
+<ResponseField name="return" type="error">
+  Returns error if execution fails
+</ResponseField>
+
+**Example:**
+
+```go
+err := ne.ExecuteNucleiWithOpts(
+	[]string{"scanme.sh"},
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{ProtocolTypes: "dns"}),
+	nuclei.WithHeaders([]string{"X-Custom: value"}),
+)
+```
+
+<Note>
+  Deprecated: Use `ExecuteNucleiWithOptsCtx` for better context control.
+</Note>
+
+### ExecuteNucleiWithOptsCtx
+
+Executes scan with context and per-scan options (thread-safe).
+
+```go
+func (e *ThreadSafeNucleiEngine) ExecuteNucleiWithOptsCtx(ctx context.Context, targets []string, opts ...NucleiSDKOptions) error
+```
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for controlling execution
+</ParamField>
+
+<ParamField path="targets" type="[]string" required>
+  List of targets to scan
+</ParamField>
+
+<ParamField path="opts" type="...NucleiSDKOptions">
+  Options specific to this scan
+</ParamField>
+
+<ResponseField name="return" type="error">
+  Returns error if execution fails or context is cancelled
+</ResponseField>
+
+**Example:**
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+
+err := ne.ExecuteNucleiWithOptsCtx(
+	ctx,
+	[]string{"scanme.sh"},
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{ProtocolTypes: "dns"}),
+)
+```
+
+### Close (ThreadSafeNucleiEngine)
+
+Closes the thread-safe engine and releases resources.
+
+```go
+func (e *ThreadSafeNucleiEngine) Close()
+```
+
+## Error types
+
+### ErrNotImplemented
+
+```go
+var ErrNotImplemented = errkit.New("Not implemented")
+```
+
+Returned when a feature is not implemented.
+
+### ErrNoTemplatesAvailable
+
+```go
+var ErrNoTemplatesAvailable = errkit.New("No templates available")
+```
+
+Returned when no templates match the configured filters.
+
+### ErrNoTargetsAvailable
+
+```go
+var ErrNoTargetsAvailable = errkit.New("No targets available")
+```
+
+Returned when no targets are loaded for scanning.
+
+### ErrOptionsNotSupported
+
+```go
+var ErrOptionsNotSupported = errkit.New("Option not supported in thread safe mode")
+```
+
+Returned when using unsupported options with `ThreadSafeNucleiEngine`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Template filters" icon="filter" href="/sdk/api/template-filters">
+    Learn about template filtering options
+  </Card>
+  <Card title="Callbacks" icon="webhook" href="/sdk/api/callbacks">
+    Understand callback functions
+  </Card>
+</CardGroup>

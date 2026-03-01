@@ -1,0 +1,950 @@
+---
+title: SDK options reference
+description: Complete API reference for all Nuclei SDK configuration options
+---
+
+This page provides detailed API documentation for all configuration options available in the Nuclei SDK.
+
+## Option types
+
+### NucleiSDKOptions
+
+Function signature for SDK options:
+
+```go
+type NucleiSDKOptions func(e *NucleiEngine) error
+```
+
+Options are functions that configure the `NucleiEngine` during initialization.
+
+## Template and workflow options
+
+### WithTemplatesOrWorkflows
+
+Specifies template and workflow sources.
+
+```go
+func WithTemplatesOrWorkflows(sources TemplateSources) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="sources" type="TemplateSources" required>
+  Template source configuration
+</ParamField>
+
+**TemplateSources structure:**
+
+```go
+type TemplateSources struct {
+	Templates       []string // Local template paths
+	Workflows       []string // Local workflow paths
+	RemoteTemplates []string // Remote template URLs
+	RemoteWorkflows []string // Remote workflow URLs
+	TrustedDomains  []string // Trusted domains for remote sources
+}
+```
+
+**Example:**
+
+```go
+nuclei.WithTemplatesOrWorkflows(nuclei.TemplateSources{
+	Templates: []string{"/path/to/templates"},
+	Workflows: []string{"/path/to/workflows"},
+	RemoteTemplates: []string{"https://example.com/template.yaml"},
+	TrustedDomains: []string{"example.com"},
+})
+```
+
+### WithTemplateFilters
+
+Filters templates based on criteria.
+
+```go
+func WithTemplateFilters(filters TemplateFilters) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="filters" type="TemplateFilters" required>
+  Template filter configuration
+</ParamField>
+
+See [TemplateFilters API](/sdk/api/template-filters) for detailed documentation.
+
+## Concurrency options
+
+### WithConcurrency
+
+Configures concurrency settings for scanning.
+
+```go
+func WithConcurrency(opts Concurrency) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="Concurrency" required>
+  Concurrency configuration
+</ParamField>
+
+**Concurrency structure:**
+
+```go
+type Concurrency struct {
+	TemplateConcurrency           int
+	HostConcurrency               int
+	HeadlessHostConcurrency       int
+	HeadlessTemplateConcurrency   int
+	JavascriptTemplateConcurrency int
+	TemplatePayloadConcurrency    int
+	ProbeConcurrency              int
+}
+```
+
+**Example:**
+
+```go
+nuclei.WithConcurrency(nuclei.Concurrency{
+	TemplateConcurrency: 25,
+	HostConcurrency: 25,
+	HeadlessHostConcurrency: 10,
+	HeadlessTemplateConcurrency: 10,
+	JavascriptTemplateConcurrency: 120,
+	TemplatePayloadConcurrency: 25,
+	ProbeConcurrency: 50,
+})
+```
+
+**Validation:**
+- All values must be at least 1
+- Returns error if any value is ≤ 0
+
+### WithGlobalRateLimit
+
+Sets global rate limiting across all targets.
+
+```go
+func WithGlobalRateLimit(maxTokens int, duration time.Duration) NucleiSDKOptions
+```
+
+<Warning>
+  Deprecated: Use `WithGlobalRateLimitCtx` instead.
+</Warning>
+
+**Parameters:**
+
+<ParamField path="maxTokens" type="int" required>
+  Maximum number of requests per duration
+</ParamField>
+
+<ParamField path="duration" type="time.Duration" required>
+  Time window for rate limiting
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithGlobalRateLimit(150, time.Second)
+```
+
+### WithGlobalRateLimitCtx
+
+Sets global rate limiting with context support.
+
+```go
+func WithGlobalRateLimitCtx(ctx context.Context, maxTokens int, duration time.Duration) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for rate limiter lifecycle
+</ParamField>
+
+<ParamField path="maxTokens" type="int" required>
+  Maximum requests per duration
+</ParamField>
+
+<ParamField path="duration" type="time.Duration" required>
+  Time window for rate limiting
+</ParamField>
+
+**Example:**
+
+```go
+ctx := context.Background()
+nuclei.WithGlobalRateLimitCtx(ctx, 150, time.Second)
+```
+
+## Network options
+
+### WithNetworkConfig
+
+Configures network-related settings.
+
+```go
+func WithNetworkConfig(opts NetworkConfig) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="NetworkConfig" required>
+  Network configuration
+</ParamField>
+
+**NetworkConfig structure:**
+
+```go
+type NetworkConfig struct {
+	DisableMaxHostErr     bool
+	Interface             string
+	InternalResolversList []string
+	LeaveDefaultPorts     bool
+	MaxHostError          int
+	Retries               int
+	SourceIP              string
+	SystemResolvers       bool
+	Timeout               int
+	TrackError            []string
+}
+```
+
+**Example:**
+
+```go
+nuclei.WithNetworkConfig(nuclei.NetworkConfig{
+	Timeout: 30,
+	Retries: 3,
+	MaxHostError: 30,
+	InternalResolversList: []string{"1.1.1.1", "8.8.8.8"},
+})
+```
+
+<Note>
+  For `ThreadSafeNucleiEngine`, this option can only be set during initialization.
+</Note>
+
+### WithProxy
+
+Configures HTTP proxy settings.
+
+```go
+func WithProxy(proxy []string, proxyInternalRequests bool) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="proxy" type="[]string" required>
+  List of proxy URLs
+</ParamField>
+
+<ParamField path="proxyInternalRequests" type="bool" required>
+  Whether to proxy internal requests
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithProxy(
+	[]string{"http://proxy.example.com:8080"},
+	true,
+)
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+### WithResponseReadSize
+
+Sets maximum response body size to read.
+
+```go
+func WithResponseReadSize(responseReadSize int) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="responseReadSize" type="int" required>
+  Maximum size in bytes (0 = unlimited)
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithResponseReadSize(10485760) // 10MB limit
+```
+
+**Validation:**
+- Must be non-negative
+- Returns error if value < 0
+
+## Feature flags
+
+### EnableCodeTemplates
+
+Enables code protocol templates.
+
+```go
+func EnableCodeTemplates() NucleiSDKOptions
+```
+
+**Example:**
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.EnableCodeTemplates(),
+)
+```
+
+<Warning>
+  Code templates can execute arbitrary code. Only use with trusted templates.
+</Warning>
+
+### EnableSelfContainedTemplates
+
+Enables self-contained templates.
+
+```go
+func EnableSelfContainedTemplates() NucleiSDKOptions
+```
+
+**Example:**
+
+```go
+nuclei.EnableSelfContainedTemplates()
+```
+
+### EnableGlobalMatchersTemplates
+
+Enables global-matchers templates.
+
+```go
+func EnableGlobalMatchersTemplates() NucleiSDKOptions
+```
+
+### EnableFileTemplates
+
+Enables file protocol templates.
+
+```go
+func EnableFileTemplates() NucleiSDKOptions
+```
+
+### EnablePassiveMode
+
+Enables passive HTTP response processing.
+
+```go
+func EnablePassiveMode() NucleiSDKOptions
+```
+
+**Example:**
+
+```go
+nuclei.EnablePassiveMode()
+```
+
+### EnableMatcherStatus
+
+Enables matcher status in results.
+
+```go
+func EnableMatcherStatus() NucleiSDKOptions
+```
+
+### DisableTemplateCache
+
+Disables template caching.
+
+```go
+func DisableTemplateCache() NucleiSDKOptions
+```
+
+### SignedTemplatesOnly
+
+Only loads and executes signed templates.
+
+```go
+func SignedTemplatesOnly() NucleiSDKOptions
+```
+
+### DASTMode
+
+Only runs DAST templates.
+
+```go
+func DASTMode() NucleiSDKOptions
+```
+
+## Headless options
+
+### EnableHeadlessWithOpts
+
+Enables headless browser support.
+
+```go
+func EnableHeadlessWithOpts(hopts *HeadlessOpts) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="hopts" type="*HeadlessOpts" required>
+  Headless configuration
+</ParamField>
+
+**HeadlessOpts structure:**
+
+```go
+type HeadlessOpts struct {
+	PageTimeout     int
+	ShowBrowser     bool
+	HeadlessOptions []string
+	UseChrome       bool
+}
+```
+
+**Example:**
+
+```go
+nuclei.EnableHeadlessWithOpts(&nuclei.HeadlessOpts{
+	PageTimeout: 20,
+	ShowBrowser: false,
+	UseChrome: false,
+	HeadlessOptions: []string{"--no-sandbox", "--disable-gpu"},
+})
+```
+
+<Warning>
+  Enabling headless mode may open attack surface. Use with caution.
+</Warning>
+
+## Interactsh options
+
+### WithInteractshOptions
+
+Configures Interactsh for OAST detection.
+
+```go
+func WithInteractshOptions(opts InteractshOpts) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="InteractshOpts" required>
+  Interactsh configuration
+</ParamField>
+
+**InteractshOpts structure:**
+
+```go
+type InteractshOpts interactsh.Options
+```
+
+**Example:**
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/interactsh"
+
+nuclei.WithInteractshOptions(nuclei.InteractshOpts{
+	ServerURL: "https://interact.sh",
+	CacheSize: 5000,
+	Eviction: 60,
+	CooldownPeriod: 5,
+	PollDuration: 5,
+})
+```
+
+<Note>
+  For `ThreadSafeNucleiEngine`, can only be set during initialization.
+</Note>
+
+## Stats and monitoring
+
+### EnableStatsWithOpts
+
+Enables statistics collection.
+
+```go
+func EnableStatsWithOpts(opts StatsOptions) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="StatsOptions" required>
+  Statistics configuration
+</ParamField>
+
+**StatsOptions structure:**
+
+```go
+type StatsOptions struct {
+	Interval         int  // seconds, default: 5
+	JSON             bool
+	MetricServerPort int
+}
+```
+
+**Example:**
+
+```go
+nuclei.EnableStatsWithOpts(nuclei.StatsOptions{
+	Interval: 5,
+	JSON: true,
+	MetricServerPort: 6064,
+})
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+## Logging options
+
+### WithVerbosity
+
+Configures logging verbosity.
+
+```go
+func WithVerbosity(opts VerbosityOptions) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="VerbosityOptions" required>
+  Verbosity configuration
+</ParamField>
+
+**VerbosityOptions structure:**
+
+```go
+type VerbosityOptions struct {
+	Verbose       bool
+	Silent        bool
+	Debug         bool
+	DebugRequest  bool
+	DebugResponse bool
+	ShowVarDump   bool
+}
+```
+
+**Example:**
+
+```go
+nuclei.WithVerbosity(nuclei.VerbosityOptions{
+	Verbose: true,
+	Debug: false,
+	DebugRequest: false,
+	DebugResponse: false,
+})
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+### WithLogger
+
+Sets a custom logger instance.
+
+```go
+func WithLogger(logger *gologger.Logger) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="logger" type="*gologger.Logger" required>
+  Custom logger instance
+</ParamField>
+
+**Example:**
+
+```go
+import "github.com/projectdiscovery/gologger"
+
+logger := gologger.NewLogger()
+nuclei.WithLogger(logger)
+```
+
+## Custom handlers
+
+### UseOutputWriter
+
+Sets a custom output writer.
+
+```go
+func UseOutputWriter(writer OutputWriter) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="writer" type="OutputWriter" required>
+  Custom output writer implementation
+</ParamField>
+
+**Example:**
+
+```go
+type CustomWriter struct{}
+
+func (w *CustomWriter) Write(event *output.ResultEvent) error {
+	return nil
+}
+
+func (w *CustomWriter) Close() {}
+
+nuclei.UseOutputWriter(&CustomWriter{})
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+### UseStatsWriter
+
+Sets a custom stats writer.
+
+```go
+func UseStatsWriter(writer StatsWriter) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="writer" type="StatsWriter" required>
+  Custom stats writer implementation
+</ParamField>
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+### WithTemplateUpdateCallback
+
+Sets callback for template updates.
+
+```go
+func WithTemplateUpdateCallback(disableTemplatesAutoUpgrade bool, callback func(newVersion string)) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="disableTemplatesAutoUpgrade" type="bool" required>
+  Whether to disable automatic template upgrades
+</ParamField>
+
+<ParamField path="callback" type="func(newVersion string)" required>
+  Callback invoked when updates are available
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateUpdateCallback(
+	false,
+	func(newVersion string) {
+		fmt.Printf("New templates version: %s\n", newVersion)
+	},
+)
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+## Authentication options
+
+### WithAuthProvider
+
+Sets a custom authentication provider.
+
+```go
+func WithAuthProvider(provider authprovider.AuthProvider) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="provider" type="authprovider.AuthProvider" required>
+  Custom authentication provider
+</ParamField>
+
+### LoadSecretsFromFile
+
+Loads secrets from files.
+
+```go
+func LoadSecretsFromFile(files []string, prefetch bool) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="files" type="[]string" required>
+  List of secret file paths
+</ParamField>
+
+<ParamField path="prefetch" type="bool" required>
+  Whether to prefetch secrets
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.LoadSecretsFromFile(
+	[]string{"/path/to/secrets.yaml"},
+	true,
+)
+```
+
+### WithHeaders
+
+Sets custom headers for all HTTP requests.
+
+```go
+func WithHeaders(headers []string) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="headers" type="[]string" required>
+  List of headers in "key: value" format
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithHeaders([]string{
+	"X-Custom-Header: value",
+	"Cookie: session=abc123",
+	"Authorization: Bearer token",
+})
+```
+
+### WithVars
+
+Sets custom variables for template context.
+
+```go
+func WithVars(vars []string) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="vars" type="[]string" required>
+  List of variables in "key=value" format
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithVars([]string{
+	"api_key=secret123",
+	"username=admin",
+})
+```
+
+## Sandbox options
+
+### WithSandboxOptions
+
+Configures sandbox security settings.
+
+```go
+func WithSandboxOptions(allowLocalFileAccess bool, restrictLocalNetworkAccess bool) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="allowLocalFileAccess" type="bool" required>
+  Allow templates to access local files
+</ParamField>
+
+<ParamField path="restrictLocalNetworkAccess" type="bool" required>
+  Restrict access to local/private networks
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithSandboxOptions(true, false)
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`.
+</Note>
+
+## Scan strategy
+
+### WithScanStrategy
+
+Sets the scanning strategy.
+
+```go
+func WithScanStrategy(strategy string) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="strategy" type="string" required>
+  Scan strategy: "host-spray" or "template-spray"
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithScanStrategy("template-spray")
+```
+
+## Advanced options
+
+### WithCatalog
+
+Uses a custom catalog instance.
+
+```go
+func WithCatalog(cat catalog.Catalog) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="cat" type="catalog.Catalog" required>
+  Custom catalog implementation
+</ParamField>
+
+### WithOptions
+
+Sets all options at once using types.Options.
+
+```go
+func WithOptions(opts *pkgtypes.Options) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="opts" type="*types.Options" required>
+  Complete Nuclei options
+</ParamField>
+
+**Example:**
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/types"
+
+opts := types.DefaultOptions()
+opts.TemplateThreads = 50
+nuclei.WithOptions(opts)
+```
+
+### WithResumeFile
+
+Enables scan resumption.
+
+```go
+func WithResumeFile(file string) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="file" type="string" required>
+  Path to resume configuration file
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithResumeFile("/tmp/nuclei-resume.cfg")
+```
+
+### WithTemporaryDirectory
+
+Sets custom temporary directory.
+
+```go
+func WithTemporaryDirectory(parentDir string) NucleiSDKOptions
+```
+
+**Parameters:**
+
+<ParamField path="parentDir" type="string" required>
+  Parent directory for SDK temporary files
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemporaryDirectory("/custom/tmp")
+```
+
+### DisableUpdateCheck
+
+Disables automatic update checks.
+
+```go
+func DisableUpdateCheck() NucleiSDKOptions
+```
+
+**Example:**
+
+```go
+nuclei.DisableUpdateCheck()
+```
+
+## Helper functions
+
+### GetTargetsFromUncover
+
+Returns targets from Uncover in specified format.
+
+```go
+func GetTargetsFromUncover(ctx context.Context, outputFormat string, opts *uncover.Options) (chan string, error)
+```
+
+**Parameters:**
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for operation
+</ParamField>
+
+<ParamField path="outputFormat" type="string" required>
+  Format string with [ip,host,port,url] placeholders
+</ParamField>
+
+<ParamField path="opts" type="*uncover.Options" required>
+  Uncover configuration
+</ParamField>
+
+### GetTargetsFromTemplateMetadata
+
+Returns targets from template metadata (shodan-query, fofa-query, etc.).
+
+```go
+func GetTargetsFromTemplateMetadata(ctx context.Context, templates []*templates.Template, outputFormat string, opts *uncover.Options) chan string
+```
+
+**Parameters:**
+
+<ParamField path="ctx" type="context.Context" required>
+  Context for operation
+</ParamField>
+
+<ParamField path="templates" type="[]*templates.Template" required>
+  Templates with metadata queries
+</ParamField>
+
+<ParamField path="outputFormat" type="string" required>
+  Format string with placeholders
+</ParamField>
+
+<ParamField path="opts" type="*uncover.Options" required>
+  Uncover configuration
+</ParamField>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="NucleiEngine API" icon="engine" href="/sdk/api/nuclei-engine">
+    Explore engine methods
+  </Card>
+  <Card title="Callbacks" icon="webhook" href="/sdk/api/callbacks">
+    Learn about result callbacks
+  </Card>
+</CardGroup>

@@ -1,0 +1,191 @@
+---
+title: Installation
+description: Install and set up the Nuclei SDK in your Go project
+---
+
+## Prerequisites
+
+Before installing the Nuclei SDK, ensure you have:
+
+- **Go 1.21 or higher** installed on your system
+- A Go project initialized with `go mod init`
+- Basic familiarity with Go programming
+
+## Installation methods
+
+### Using go get
+
+The recommended way to install the Nuclei SDK is using `go get`:
+
+```bash
+go get -u github.com/projectdiscovery/nuclei/v3/lib
+```
+
+This command will:
+- Download the latest version of the Nuclei library
+- Add it to your `go.mod` file
+- Download all required dependencies
+
+### Using import statement
+
+Alternatively, you can add the import to your Go file and let your IDE handle the installation:
+
+```go
+import nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+```
+
+Then run:
+
+```bash
+go mod tidy
+```
+
+## Verify installation
+
+Create a simple test file to verify the installation:
+
+```go test.go
+package main
+
+import (
+	"fmt"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+)
+
+func main() {
+	ne, err := nuclei.NewNucleiEngine()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	defer ne.Close()
+	fmt.Println("Nuclei SDK initialized successfully!")
+}
+```
+
+Run the test:
+
+```bash
+go run test.go
+```
+
+If successful, you should see: `Nuclei SDK initialized successfully!`
+
+## Template installation
+
+Nuclei templates are required to run scans. They can be installed automatically or manually.
+
+### Automatic installation
+
+Templates are automatically downloaded when you first run a scan:
+
+```go
+ne, err := nuclei.NewNucleiEngine()
+if err != nil {
+	panic(err)
+}
+defer ne.Close()
+
+// Templates will be auto-downloaded on first execution
+ne.LoadTargets([]string{"scanme.sh"}, false)
+err = ne.ExecuteWithCallback(nil)
+```
+
+### Manual installation
+
+For concurrent usage or CI/CD environments, pre-install templates:
+
+```go
+import (
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+	"github.com/projectdiscovery/nuclei/v3/pkg/installer"
+)
+
+func main() {
+	// Install templates before creating engine
+	tm := installer.TemplateManager{}
+	if err := tm.FreshInstallIfNotExists(); err != nil {
+		panic(err)
+	}
+
+	// Now create and use the engine
+	ne, err := nuclei.NewThreadSafeNucleiEngine()
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+}
+```
+
+<Note>
+  Pre-installing templates is recommended when using `NewThreadSafeNucleiEngine` or in automated environments to avoid race conditions.
+</Note>
+
+## Project structure
+
+A typical project using the Nuclei SDK might look like:
+
+```
+your-project/
+├── go.mod
+├── go.sum
+├── main.go
+└── scanner/
+    ├── engine.go
+    └── results.go
+```
+
+## Common installation issues
+
+### Module checksum mismatch
+
+If you encounter checksum errors:
+
+```bash
+go clean -modcache
+go mod tidy
+```
+
+### Version conflicts
+
+Ensure you're using compatible versions:
+
+```bash
+go get -u github.com/projectdiscovery/nuclei/v3/lib@latest
+go mod tidy
+```
+
+### Build errors
+
+If you encounter build errors, check your Go version:
+
+```bash
+go version  # Should be 1.21 or higher
+```
+
+## Environment variables
+
+Optional environment variables for customization:
+
+<ParamField path="NUCLEI_TEMPLATES_PATH" type="string">
+  Custom path for Nuclei templates directory
+</ParamField>
+
+<ParamField path="NUCLEI_CONFIG_PATH" type="string">
+  Custom path for Nuclei configuration file
+</ParamField>
+
+<ParamField path="NUCLEI_REPORTING_DB" type="string">
+  Custom path for Nuclei reporting database
+</ParamField>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Basic usage" icon="play" href="/sdk/basic-usage">
+    Start using the SDK with simple examples
+  </Card>
+  <Card title="Configuration options" icon="sliders" href="/sdk/configuration-options">
+    Explore all available configuration options
+  </Card>
+</CardGroup>

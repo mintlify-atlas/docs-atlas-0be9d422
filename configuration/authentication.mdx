@@ -1,0 +1,506 @@
+---
+title: Authentication
+description: Configure authentication for private templates, API scanning, and secure integrations
+---
+
+Nuclei supports various authentication mechanisms for accessing private templates, scanning authenticated endpoints, and integrating with secure systems.
+
+## Template authentication
+
+### GitHub authentication
+
+Access private templates from GitHub repositories:
+
+```bash
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+nuclei -t https://github.com/private-org/templates/template.yaml
+```
+
+The token needs the `repo` scope for private repositories.
+
+### GitLab authentication
+
+```bash
+export GITLAB_TOKEN="glpat-xxxxxxxxxxxx"
+nuclei -t https://gitlab.com/private-org/templates/-/raw/main/template.yaml
+```
+
+### AWS S3 authentication
+
+For templates stored in private S3 buckets:
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="us-east-1"
+
+nuclei -t s3://my-private-bucket/templates/
+```
+
+### Azure Blob Storage
+
+```bash
+export AZURE_STORAGE_ACCOUNT="storageaccount"
+export AZURE_STORAGE_KEY="your-storage-key"
+
+nuclei -t azure://container/templates/
+```
+
+## Request authentication
+
+### HTTP Basic authentication
+
+Add basic auth headers to all requests:
+
+```bash
+nuclei -target https://api.example.com \
+  -H "Authorization: Basic $(echo -n 'user:pass' | base64)"
+```
+
+### Bearer token authentication
+
+```bash
+nuclei -target https://api.example.com \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+### Custom headers
+
+Add any custom authentication headers:
+
+```bash
+nuclei -target https://api.example.com \
+  -H "X-API-Key: your-api-key" \
+  -H "X-Auth-Token: your-auth-token"
+```
+
+### Multiple headers from file
+
+Create a headers file (`headers.txt`):
+
+```
+Authorization: Bearer token123
+X-API-Key: key456
+X-Custom-Header: value
+```
+
+Use it:
+
+```bash
+nuclei -target https://api.example.com -H headers.txt
+```
+
+## Secrets file
+
+For managing multiple secrets and credentials, use a secrets file:
+
+### Creating a secrets file
+
+Create `secrets.yaml`:
+
+```yaml
+# API Keys
+api_keys:
+  github: "ghp_xxxxxxxxxxxx"
+  gitlab: "glpat-xxxxxxxxxxxx"
+  jira: "your-jira-token"
+
+# HTTP Headers (case-sensitive)
+headers:
+  Authorization: "Bearer token123"
+  X-API-Key: "key456"
+  X-Custom-Auth: "custom-value"
+
+# Cookies
+cookies:
+  session: "sessionid123"
+  auth_token: "authtoken456"
+
+# Basic Auth
+basic_auth:
+  username: "admin"
+  password: "password123"
+```
+
+<Warning>
+  Add your secrets file to `.gitignore` to prevent committing sensitive data.
+</Warning>
+
+### Using the secrets file
+
+```bash
+nuclei -target https://api.example.com -sf secrets.yaml
+```
+
+With prefetch for better performance:
+
+```bash
+nuclei -target https://api.example.com -sf secrets.yaml -ps
+```
+
+<Note>
+  Headers in secrets files preserve exact casing, which is important for case-sensitive APIs.
+</Note>
+
+## Cookie-based authentication
+
+### Single cookie
+
+```bash
+nuclei -target https://app.example.com \
+  -H "Cookie: sessionid=abc123; auth_token=xyz789"
+```
+
+### From browser
+
+Export cookies from your browser and use them:
+
+```bash
+# Export cookies as Netscape format
+# Then use with curl to test
+curl -b cookies.txt https://app.example.com
+
+# Convert to Nuclei header format
+nuclei -target https://app.example.com \
+  -H "Cookie: $(grep -v '^#' cookies.txt | awk '{printf "%s=%s; ", $6, $7}')"
+```
+
+## OAuth 2.0 authentication
+
+### Bearer token from OAuth flow
+
+If you have an OAuth token:
+
+```bash
+nuclei -target https://api.example.com \
+  -H "Authorization: Bearer $(cat oauth-token.txt)"
+```
+
+### OAuth in templates
+
+Create a template with OAuth:
+
+```yaml
+id: oauth-api-test
+
+info:
+  name: OAuth API Test
+  author: security-team
+  severity: info
+
+variables:
+  oauth_token: "{{env('OAUTH_TOKEN')}}"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/protected"
+    
+    headers:
+      Authorization: "Bearer {{oauth_token}}"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+Run it:
+
+```bash
+export OAUTH_TOKEN="your-oauth-token"
+nuclei -target https://api.example.com -t oauth-template.yaml
+```
+
+## Client certificates
+
+For mutual TLS (mTLS) authentication:
+
+```bash
+nuclei -target https://secure-api.example.com \
+  -cc client-cert.pem \
+  -ck client-key.pem \
+  -ca ca-cert.pem
+```
+
+<ParamField path="-cc, -client-cert" type="string">
+  Client certificate file (PEM-encoded)
+</ParamField>
+
+<ParamField path="-ck, -client-key" type="string">
+  Client private key file (PEM-encoded)
+</ParamField>
+
+<ParamField path="-ca, -client-ca" type="string">
+  Client certificate authority file (PEM-encoded)
+</ParamField>
+
+## API key rotation
+
+### Using environment variables
+
+```bash
+# Rotate API keys without changing config
+export API_KEY_CURRENT="key123"
+export API_KEY_BACKUP="key456"
+
+nuclei -target https://api.example.com \
+  -H "X-API-Key: $API_KEY_CURRENT"
+```
+
+### Template with fallback keys
+
+```yaml
+id: api-with-fallback
+
+variables:
+  primary_key: "{{env('API_KEY_PRIMARY')}}"
+  backup_key: "{{env('API_KEY_BACKUP')}}"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    
+    headers:
+      X-API-Key: "{{primary_key}}"
+    
+    matchers-condition: or
+    matchers:
+      - type: status
+        status:
+          - 200
+      
+      # If first request fails, try backup key
+      - type: status
+        status:
+          - 401
+        internal: true
+
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    
+    headers:
+      X-API-Key: "{{backup_key}}"
+```
+
+## Session management
+
+### Maintaining sessions across requests
+
+Nuclei automatically handles cookies between requests in the same template:
+
+```yaml
+id: authenticated-scan
+
+http:
+  # Step 1: Login
+  - method: POST
+    path:
+      - "{{BaseURL}}/login"
+    
+    body: |
+      username=admin&password=admin
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+
+  # Step 2: Access protected resource
+  # Cookies from step 1 are automatically included
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin/dashboard"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+## Cloud platform authentication
+
+### ProjectDiscovery Cloud Platform
+
+```bash
+# Configure PDCP
+nuclei -auth
+
+# Or use API key directly
+export PDCP_API_KEY="pdcp_xxxxxxxxxxxx"
+nuclei -target example.com -dashboard
+```
+
+### AWS SigV4 signing
+
+For AWS API requests with signature v4:
+
+```bash
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_REGION="us-east-1"
+
+nuclei -t aws-templates/ -target https://s3.amazonaws.com
+```
+
+## Proxy authentication
+
+### Authenticated proxy
+
+```bash
+nuclei -target https://example.com \
+  -proxy http://username:password@proxy.company.com:8080
+```
+
+### Multiple proxies with auth
+
+Create `proxies.txt`:
+
+```
+http://user1:pass1@proxy1.com:8080
+http://user2:pass2@proxy2.com:8080
+http://user3:pass3@proxy3.com:8080
+```
+
+Use it:
+
+```bash
+nuclei -target https://example.com -proxy proxies.txt
+```
+
+## Security best practices
+
+<AccordionGroup>
+  <Accordion title="Never hardcode credentials">
+    Always use environment variables or secrets files:
+    
+    ❌ **Don't do this:**
+    ```yaml
+    headers:
+      Authorization: "Bearer hardcoded-token"
+    ```
+    
+    ✅ **Do this:**
+    ```yaml
+    variables:
+      token: "{{env('API_TOKEN')}}"
+    
+    headers:
+      Authorization: "Bearer {{token}}"
+    ```
+  </Accordion>
+
+  <Accordion title="Use least privilege">
+    Grant minimal permissions:
+    - GitHub: Only `repo` scope, not `admin` scopes
+    - API keys: Read-only when possible
+    - Cloud credentials: Restricted to specific resources
+  </Accordion>
+
+  <Accordion title="Rotate credentials regularly">
+    - Set expiration dates on tokens
+    - Rotate before expiration
+    - Use short-lived tokens for CI/CD
+    - Monitor for unauthorized usage
+  </Accordion>
+
+  <Accordion title="Protect secrets files">
+    ```bash
+    # Set restrictive permissions
+    chmod 600 secrets.yaml
+    
+    # Add to .gitignore
+    echo "secrets.yaml" >> .gitignore
+    
+    # Use secrets management in CI/CD
+    # GitHub: Repository Secrets
+    # GitLab: CI/CD Variables (masked)
+    ```
+  </Accordion>
+
+  <Accordion title="Use encrypted storage">
+    For sensitive environments:
+    - HashiCorp Vault
+    - AWS Secrets Manager
+    - Azure Key Vault
+    - Google Secret Manager
+    
+    Fetch secrets at runtime:
+    ```bash
+    export API_TOKEN=$(vault kv get -field=token secret/nuclei)
+    nuclei -target example.com
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized errors">
+    Check:
+    1. Token/credentials are correct and not expired
+    2. Authorization header format matches API requirements
+    3. Token has required permissions/scopes
+    4. No extra whitespace in token value
+    
+    Debug:
+    ```bash
+    nuclei -target example.com -debug-req -H "Authorization: Bearer $TOKEN"
+    ```
+  </Accordion>
+
+  <Accordion title="Cookies not persisting">
+    Ensure:
+    1. Using request chaining in same template
+    2. Not using `-no-cookie` flag
+    3. Server is setting cookies correctly (check with `-debug-resp`)
+    
+    Verify:
+    ```bash
+    nuclei -target example.com -t template.yaml -debug-resp
+    ```
+  </Accordion>
+
+  <Accordion title="Environment variables not loading">
+    Verify:
+    ```bash
+    # Check variable is set
+    echo $API_TOKEN
+    
+    # Export if needed
+    export API_TOKEN="value"
+    
+    # Check Nuclei sees it
+    nuclei -target example.com -t template.yaml -v
+    ```
+  </Accordion>
+
+  <Accordion title="Client certificate errors">
+    Verify certificate format:
+    ```bash
+    # Check cert is valid PEM
+    openssl x509 -in client-cert.pem -text -noout
+    
+    # Check key matches cert
+    openssl rsa -in client-key.pem -check
+    ```
+    
+    Ensure:
+    - Certificate is not expired
+    - Private key is unencrypted (or decrypt first)
+    - CA certificate is correct
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Environment variables" icon="gear" href="/configuration/environment-variables">
+    Complete list of environment variables
+  </Card>
+  <Card title="Template development" icon="code" href="/templates/introduction">
+    Create templates with authentication
+  </Card>
+</CardGroup>

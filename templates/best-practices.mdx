@@ -1,0 +1,534 @@
+---
+title: Template best practices
+description: Guidelines and recommendations for writing high-quality Nuclei templates
+---
+
+Writing effective Nuclei templates requires following established patterns and conventions. These best practices help ensure your templates are accurate, maintainable, and performant.
+
+## Template structure
+
+### Use descriptive template IDs
+
+Template IDs should clearly describe what the template detects using lowercase letters and hyphens.
+
+<CodeGroup>
+```yaml Good examples
+id: git-config-exposure
+id: cve-2021-44228-log4j-rce
+id: aws-s3-bucket-public-access
+```
+
+```yaml Bad examples
+id: test1
+id: MyTemplate
+id: vulnerability_check
+```
+</CodeGroup>
+
+<Note>
+  Template IDs must match the pattern `^([a-zA-Z0-9]+[-_])*[a-zA-Z0-9]+$` as enforced in `pkg/templates/templates.go:48`.
+</Note>
+
+### Include comprehensive metadata
+
+Every template requires complete `info` section with mandatory fields:
+
+```yaml
+info:
+  name: Descriptive Template Name
+  author: your-username
+  severity: medium  # info, low, medium, high, critical
+  description: |
+    Detailed explanation of what this template detects,
+    including context and impact information.
+  tags: technology,vulnerability-type,category
+```
+
+<Warning>
+  Templates missing `name`, `author`, or `id` fields will fail validation as defined in `pkg/templates/parser_validate.go:13-37`.
+</Warning>
+
+### Add references and classification
+
+Include external references and classification data for better context:
+
+```yaml
+info:
+  name: SQL Injection Detection
+  author: pdteam
+  severity: high
+  description: Detects SQL injection vulnerabilities
+  reference:
+    - https://owasp.org/www-community/attacks/SQL_Injection
+    - https://cwe.mitre.org/data/definitions/89.html
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 9.8
+    cwe-id: CWE-89
+  tags: sqli,injection,database
+  metadata:
+    max-request: 3
+```
+
+## Matchers and detection logic
+
+### Use multiple matchers for accuracy
+
+Combine different matcher types with `matchers-condition: and` to reduce false positives:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+          - "repositoryformatversion"
+        condition: or
+      
+      - type: status
+        status:
+          - 200
+      
+      - type: word
+        words:
+          - "<html"
+          - "<body"
+        condition: or
+        negative: true
+```
+
+<Tip>
+  Always validate response status codes to avoid matching error pages.
+</Tip>
+
+### Leverage negative matchers
+
+Use `negative: true` to exclude false positives:
+
+```yaml
+matchers:
+  - type: word
+    words:
+      - "404 Not Found"
+      - "Access Denied"
+      - "Page not found"
+    negative: true
+```
+
+### Be specific with word matchers
+
+Choose unique strings that are unlikely to appear in non-vulnerable responses:
+
+<CodeGroup>
+```yaml Good - Specific strings
+matchers:
+  - type: word
+    words:
+      - "PostgreSQL query failed"
+      - "org.postgresql.util.PSQLException"
+```
+
+```yaml Bad - Generic strings
+matchers:
+  - type: word
+    words:
+      - "error"
+      - "failed"
+```
+</CodeGroup>
+
+## Protocol-specific best practices
+
+### HTTP templates
+
+<AccordionGroup>
+  <Accordion title="Use appropriate HTTP methods">
+    Match the HTTP method to the vulnerability being tested:
+    
+    ```yaml
+    # For reading resources
+    http:
+      - method: GET
+    
+    # For testing input handling
+    http:
+      - method: POST
+        body: "test={{payload}}"
+    ```
+  </Accordion>
+  
+  <Accordion title="Set reasonable timeouts">
+    Use the `annotation-timeout` for slow operations:
+    
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/slow-endpoint"
+        
+        # Optional timeout annotation
+        # See integration_tests/protocols/http/annotation-timeout.yaml
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle redirects appropriately">
+    Consider whether redirects should be followed:
+    
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/redirect-test"
+        redirects: true  # Follow redirects
+        max-redirects: 3
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Code protocol templates
+
+Code protocol templates require special handling due to security implications:
+
+<Warning>
+  Code templates must be signed and cannot be re-signed by different users. See `pkg/templates/signer/tmpl_signer.go:74-95` for enforcement details.
+</Warning>
+
+```yaml
+id: cloud-resource-check
+
+info:
+  name: Cloud Resource Check
+  author: pdteam
+  severity: info
+
+code:
+  - engine: bash
+    source: |
+      #!/bin/bash
+      # Check for specific cloud resource
+      aws s3 ls | grep sensitive-bucket
+```
+
+<Note>
+  Code templates are considered sensitive and must be signed before distribution.
+</Note>
+
+## Variables and dynamic values
+
+### Use variables for reusable values
+
+Define variables at the template level for values used multiple times:
+
+```yaml
+variables:
+  endpoint: "api/v1/users"
+  user_agent: "Mozilla/5.0 (Custom Scanner)"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/{{endpoint}}"
+    headers:
+      User-Agent: "{{user_agent}}"
+```
+
+### Leverage DSL functions
+
+Use built-in DSL functions for dynamic value generation:
+
+```yaml
+variables:
+  random_id: "{{rand_int(1000, 9999)}}"
+  encoded_payload: "{{base64('test payload')}}"
+  timestamp: "{{unix_time()}}"
+```
+
+### Extract values for multi-step requests
+
+Capture data from responses for use in subsequent requests:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/token"
+    extractors:
+      - type: regex
+        name: auth_token
+        internal: true
+        regex:
+          - '"token":"([^"]+)"'
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      Authorization: "Bearer {{auth_token}}"
+```
+
+## Performance optimization
+
+### Minimize request count
+
+<Steps>
+  <Step title="Combine checks when possible">
+    Use multiple matchers on a single request instead of multiple requests:
+    
+    ```yaml
+    # Good - Single request, multiple checks
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/config"
+        matchers:
+          - type: word
+            words:
+              - "secret_key"
+              - "api_token"
+              - "password"
+            condition: or
+    ```
+  </Step>
+  
+  <Step title="Use stop-at-first-match">
+    For templates with multiple paths, stop after first match:
+    
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/.git/config"
+          - "{{BaseURL}}/.git/HEAD"
+          - "{{BaseURL}}/.git/logs/HEAD"
+        stop-at-first-match: true
+    ```
+  </Step>
+  
+  <Step title="Set max-request in metadata">
+    Document the maximum number of requests:
+    
+    ```yaml
+    info:
+      metadata:
+        max-request: 2
+    ```
+  </Step>
+</Steps>
+
+### Disable path auto-merge when needed
+
+Control path merging behavior for specific use cases:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+      - "{{BaseURL}}/api"
+    disable-path-automerge: true
+```
+
+## Testing and validation
+
+### Validate before testing
+
+Always validate templates before running them:
+
+```bash
+nuclei -validate -t your-template.yaml
+```
+
+<Tip>
+  Run `make template-validate` to validate templates using the built binary as shown in `CLAUDE.md`.
+</Tip>
+
+### Test against multiple scenarios
+
+<Tabs>
+  <Tab title="Vulnerable targets">
+    Verify the template detects vulnerable instances:
+    
+    ```bash
+    nuclei -t template.yaml -u http://vulnerable-target.local
+    ```
+  </Tab>
+  
+  <Tab title="Safe targets">
+    Ensure no false positives on safe targets:
+    
+    ```bash
+    nuclei -t template.yaml -u https://safe-site.com
+    ```
+  </Tab>
+  
+  <Tab title="Edge cases">
+    Test unusual scenarios:
+    - Non-existent endpoints
+    - Invalid input
+    - Redirects and error pages
+  </Tab>
+</Tabs>
+
+### Use debug mode for troubleshooting
+
+```bash
+nuclei -t template.yaml -u https://example.com -debug
+```
+
+## Security considerations
+
+### Avoid destructive operations
+
+<Warning>
+  Templates should never modify, delete, or disrupt target systems. Focus on read-only detection.
+</Warning>
+
+```yaml
+# Bad - Writes to file system
+code:
+  - engine: bash
+    source: rm -rf /tmp/test
+
+# Good - Read-only check
+code:
+  - engine: bash
+    source: ls -la /tmp/test
+```
+
+### Handle sensitive data carefully
+
+Don't expose credentials or sensitive information in template output:
+
+```yaml
+extractors:
+  - type: regex
+    name: sensitive_token
+    internal: true  # Prevents output in results
+    regex:
+      - 'token":"([^"]+)"'
+```
+
+### Respect rate limits
+
+Use appropriate delays for rate-limited APIs:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/limited"
+    threads: 1
+    # Consider adding delay between requests
+```
+
+## Documentation
+
+### Include usage examples
+
+Add comments or description showing how to use the template:
+
+```yaml
+info:
+  name: API Key Exposure Check
+  description: |
+    Detects exposed API keys in configuration files.
+    
+    Usage:
+    nuclei -t api-key-exposure.yaml -u https://target.com
+    
+    The template checks common config file locations.
+```
+
+### Document expected behavior
+
+<Note>
+  Clearly describe what constitutes a positive match and why it's significant.
+</Note>
+
+## Common pitfalls to avoid
+
+<AccordionGroup>
+  <Accordion title="Overly broad matchers">
+    **Problem**: Matching common strings that appear in normal responses.
+    
+    **Solution**: Use multiple specific matchers with `and` condition.
+  </Accordion>
+  
+  <Accordion title="Ignoring status codes">
+    **Problem**: Matching content without validating HTTP status.
+    
+    **Solution**: Always include status code validation.
+  </Accordion>
+  
+  <Accordion title="Missing negative matchers">
+    **Problem**: False positives from error pages.
+    
+    **Solution**: Add negative matchers for common error patterns.
+  </Accordion>
+  
+  <Accordion title="Hardcoded values">
+    **Problem**: Using hardcoded credentials or API keys.
+    
+    **Solution**: Use variables and environment-based configuration.
+  </Accordion>
+  
+  <Accordion title="Unclear template names">
+    **Problem**: Generic names like "test-template" or "check-1".
+    
+    **Solution**: Use descriptive names that explain what's being detected.
+  </Accordion>
+</AccordionGroup>
+
+## Template checklist
+
+Before submitting or using a template, verify:
+
+<Check>
+  ✓ Template ID follows naming conventions
+  
+  ✓ All mandatory metadata fields are present
+  
+  ✓ Description clearly explains detection logic
+  
+  ✓ Severity is appropriate for the vulnerability
+  
+  ✓ Multiple matchers reduce false positives
+  
+  ✓ Negative matchers exclude common errors
+  
+  ✓ Template passes validation (`nuclei -validate`)
+  
+  ✓ Tested against vulnerable targets (true positives)
+  
+  ✓ Tested against safe targets (no false positives)
+  
+  ✓ Request count is minimized
+  
+  ✓ No destructive operations
+  
+  ✓ References and classification included
+  
+  ✓ Code is well-formatted and readable
+</Check>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Template validation" icon="check-circle" href="/templates/validation">
+    Learn about template validation and syntax checking
+  </Card>
+  <Card title="Template signing" icon="signature" href="/templates/signing">
+    Understand template signing for code protocol templates
+  </Card>
+  <Card title="Contributing templates" icon="code-pull-request" href="/templates/contributing">
+    Submit your templates to the community
+  </Card>
+  <Card title="Protocol reference" icon="book" href="/templates/protocols/http">
+    Explore protocol-specific features
+  </Card>
+</CardGroup>

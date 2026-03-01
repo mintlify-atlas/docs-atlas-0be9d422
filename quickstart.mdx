@@ -1,80 +1,416 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Get started with Nuclei in minutes - run your first vulnerability scan
 ---
 
-## Get started in three steps
+## Your first scan
 
-Get your documentation site running locally and make your first customization.
+Let's run your first vulnerability scan with Nuclei. We'll scan a test target to demonstrate how Nuclei works.
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Basic scan">
+    Run a simple scan against a single target:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    nuclei -target https://example.com
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    This will run all applicable templates against the target and display any findings.
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    <Note>
+      By default, Nuclei automatically downloads and updates templates on first run.
+    </Note>
+  </Step>
+  
+  <Step title="View the results">
+    Nuclei will output results in real-time as it finds vulnerabilities:
+    
+    ```
+    [2024-03-01 12:00:00] [self-signed-ssl] [ssl] [info] example.com:443
+    [2024-03-01 12:00:01] [http-missing-security-headers] [http] [info] https://example.com
+    ```
+    
+    Each line shows:
+    - Timestamp
+    - Template ID
+    - Protocol type
+    - Severity level
+    - Target URL
+  </Step>
+  
+  <Step title="Save results to a file">
+    Export results to a file for later analysis:
+    
+    ```bash
+    nuclei -target https://example.com -json-export results.json
+    ```
+    
+    This creates a JSON file with detailed findings.
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Common scanning scenarios
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+### Single target scan
 
-### Step 3: Go live
+Scan a single web application:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash
+nuclei -target https://example.com
+```
+
+You can also use the short flag `-u`:
+
+```bash
+nuclei -u https://example.com
+```
+
+### Scanning multiple targets
+
+Scan multiple targets from a file. Create a `urls.txt` file with one URL per line:
+
+```txt urls.txt
+https://example.com
+https://test.example.com
+https://app.example.com
+```
+
+Then scan all targets:
+
+```bash
+nuclei -list urls.txt
+```
+
+<Tip>
+  Use the `-l` short flag: `nuclei -l urls.txt`
+</Tip>
+
+### Network scan
+
+Scan an entire subnet for network-related issues:
+
+```bash
+nuclei -target 192.168.1.0/24
+```
+
+This will scan the entire subnet for network vulnerabilities such as open ports or misconfigured services.
+
+### Scan with specific templates
+
+Run only specific templates or template directories:
+
+<CodeGroup>
+```bash CVE templates
+nuclei -target example.com -t http/cves/
+```
+
+```bash SSL templates
+nuclei -target example.com -t ssl
+```
+
+```bash Multiple template directories
+nuclei -target example.com -t http/cves/ -t ssl
+```
+
+```bash Specific template file
+nuclei -u https://example.com -t /path/to/your-template.yaml
+```
+</CodeGroup>
+
+### Filter by severity
+
+Run only high and critical severity templates:
+
+```bash
+nuclei -target example.com -severity critical,high
+```
+
+Or use the short flag:
+
+```bash
+nuclei -target example.com -s critical,high
+```
+
+<Info>
+  Available severity levels: `info`, `low`, `medium`, `high`, `critical`, `unknown`
+</Info>
+
+### Filter by tags
+
+Run templates with specific tags:
+
+```bash
+nuclei -target example.com -tags cve,xss,sqli
+```
+
+Exclude certain tags:
+
+```bash
+nuclei -target example.com -exclude-tags dos
+```
+
+## Output formats
+
+Nuclei supports multiple output formats:
+
+<Tabs>
+  <Tab title="JSON">
+    Export results in JSON format:
+    
+    ```bash
+    nuclei -target example.com -json-export output.json
+    ```
+    
+    Or use JSONL (JSON Lines) for streaming output:
+    
+    ```bash
+    nuclei -target example.com -jsonl-export output.jsonl
+    ```
+  </Tab>
+  
+  <Tab title="Markdown">
+    Export results as Markdown files:
+    
+    ```bash
+    nuclei -target example.com -markdown-export reports/
+    ```
+    
+    This creates organized Markdown reports in the specified directory.
+  </Tab>
+  
+  <Tab title="SARIF">
+    Export in SARIF format for integration with security tools:
+    
+    ```bash
+    nuclei -target example.com -sarif-export output.sarif
+    ```
+    
+    SARIF is widely supported by code analysis platforms.
+  </Tab>
+  
+  <Tab title="Silent mode">
+    Display only findings without extra output:
+    
+    ```bash
+    nuclei -target example.com -silent
+    ```
+    
+    Perfect for scripting and automation.
+  </Tab>
+</Tabs>
+
+## Advanced scanning options
+
+### Rate limiting
+
+Control the scan speed to avoid overwhelming targets:
+
+```bash
+# Limit to 50 requests per second
+nuclei -target example.com -rate-limit 50
+
+# Reduce concurrent template execution
+nuclei -target example.com -concurrency 10
+```
+
+### Custom headers
+
+Add custom headers to all requests:
+
+```bash
+nuclei -target example.com -header "Authorization: Bearer token123"
+```
+
+Or use multiple headers:
+
+```bash
+nuclei -target example.com -H "Cookie: session=abc" -H "User-Agent: Custom"
+```
+
+### Proxy support
+
+Route requests through a proxy:
+
+```bash
+nuclei -target example.com -proxy http://127.0.0.1:8080
+```
+
+Supports HTTP, HTTPS, and SOCKS5 proxies.
+
+### Resume interrupted scans
+
+If a scan is interrupted, resume it later:
+
+```bash
+# First scan (interrupted)
+nuclei -list urls.txt -resume scan-state.cfg
+
+# Resume the scan
+nuclei -resume scan-state.cfg
+```
+
+<Note>
+  Nuclei automatically creates resume files when you press `Ctrl+C` to gracefully stop a scan.
+</Note>
+
+## Practical examples
+
+### Example 1: Quick security check
+
+Run a fast security assessment on a web application:
+
+```bash
+nuclei -u https://example.com \
+  -severity high,critical \
+  -silent \
+  -json-export findings.json
+```
+
+### Example 2: Comprehensive scan
+
+Perform a thorough scan with all templates:
+
+```bash
+nuclei -list targets.txt \
+  -output results.txt \
+  -json-export results.json \
+  -stats \
+  -silent
+```
+
+### Example 3: CVE scanning
+
+Scan for known CVEs only:
+
+```bash
+nuclei -u https://example.com \
+  -tags cve \
+  -severity medium,high,critical
+```
+
+### Example 4: Network vulnerability scan
+
+Scan network infrastructure:
+
+```bash
+nuclei -target 10.0.0.0/24 \
+  -type network,dns \
+  -rate-limit 100
+```
+
+## Integration with other tools
+
+### Pipeline with subfinder
+
+Combine with other ProjectDiscovery tools:
+
+```bash
+subfinder -d example.com -silent | httpx -silent | nuclei
+```
+
+This:
+1. Finds subdomains with subfinder
+2. Filters live hosts with httpx
+3. Scans with Nuclei
+
+### Use with custom templates
+
+Scan with your own custom template:
+
+```bash
+nuclei -u https://example.com -t /path/to/custom-template.yaml
+```
+
+### Cloud integration
+
+Upload scan results to ProjectDiscovery Cloud:
+
+```bash
+nuclei -target https://example.com -dashboard
+```
+
+<Info>
+  This feature is free and doesn't require a subscription. Configure with `nuclei -auth` first.
+</Info>
+
+## Understanding the output
+
+When Nuclei finds a vulnerability, it displays:
+
+```
+[template-id] [protocol] [severity] target-url
+```
+
+Example:
+
+```
+[CVE-2021-44228] [http] [critical] https://example.com/api/login
+```
+
+- **template-id**: The template that detected the issue
+- **protocol**: The protocol used (http, dns, network, etc.)
+- **severity**: Issue severity (info, low, medium, high, critical)
+- **target-url**: The affected URL or target
+
+### Verbose output
+
+For more details, enable verbose mode:
+
+```bash
+nuclei -target example.com -v
+```
+
+Or very verbose:
+
+```bash
+nuclei -target example.com -vv
+```
+
+## Getting help
+
+View all available options:
+
+```bash
+nuclei -h
+```
+
+View specific flag groups:
+
+```bash
+nuclei -help target
+nuclei -help templates
+nuclei -help output
+```
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="Key features"
+    icon="star"
+    href="/key-features"
+  >
+    Explore Nuclei's powerful capabilities in depth
+  </Card>
+  <Card
+    title="Template selection"
+    icon="filter"
+    href="/usage/template-selection"
+  >
+    Learn advanced template filtering techniques
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Master result export and reporting
+  </Card>
+  <Card
+    title="Write templates"
+    icon="code"
+    href="/templates/introduction"
+  >
+    Create your own custom vulnerability templates
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

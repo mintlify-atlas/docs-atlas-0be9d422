@@ -1,0 +1,210 @@
+---
+title: WebSocket protocol templates
+description: Create WebSocket-based Nuclei templates for real-time communication testing
+---
+
+WebSocket protocol templates enable testing of WebSocket endpoints, real-time communication, and bidirectional data exchange vulnerabilities.
+
+## Basic WebSocket request
+
+```yaml
+id: basic-websocket
+
+info:
+  name: Basic WebSocket Request
+  author: pdteam
+  severity: info
+
+websocket:
+  - address: '{{Scheme}}://{{Hostname}}'
+    inputs:
+      - data: hello
+    
+    matchers:
+      - type: word
+        words:
+          - world
+```
+
+## WebSocket components
+
+### Address
+
+<ParamField path="address" type="string" required>
+  WebSocket URL to connect to. Supports `ws://` and `wss://` schemes.
+  
+  ```yaml
+  websocket:
+    - address: 'ws://{{Hostname}}/socket'
+  ```
+  
+  Use `{{Scheme}}` to automatically use ws:// or wss://:
+  ```yaml
+  websocket:
+    - address: '{{Scheme}}://{{Hostname}}/realtime'
+  ```
+</ParamField>
+
+### Inputs
+
+<ParamField path="inputs" type="array">
+  Messages to send over the WebSocket connection.
+  
+  ```yaml
+  websocket:
+    - address: 'ws://{{Hostname}}/chat'
+      inputs:
+        - data: '{"action":"subscribe"}'
+        - data: '{"action":"message","text":"test"}'
+  ```
+</ParamField>
+
+### Headers
+
+<ParamField path="headers" type="object">
+  Custom headers for the WebSocket handshake.
+  
+  ```yaml
+  websocket:
+    - address: 'wss://{{Hostname}}/ws'
+      headers:
+        Origin: "https://{{Hostname}}"
+        Authorization: "Bearer {{token}}"
+  ```
+</ParamField>
+
+## Example: WebSocket echo test
+
+```yaml
+id: websocket-echo
+
+info:
+  name: WebSocket Echo Test
+  author: pdteam
+  severity: info
+  description: Tests WebSocket echo functionality
+
+websocket:
+  - address: 'ws://{{Hostname}}/echo'
+    inputs:
+      - data: 'test-message-{{rand_int(1000,9999)}}'
+    
+    matchers:
+      - type: word
+        words:
+          - 'test-message-'
+```
+
+## Example: WebSocket authentication bypass
+
+```yaml
+id: websocket-auth-bypass
+
+info:
+  name: WebSocket Authentication Bypass
+  author: researcher
+  severity: high
+  description: Tests for missing authentication on WebSocket endpoints
+
+websocket:
+  - address: 'wss://{{Hostname}}/admin/ws'
+    inputs:
+      - data: '{"action":"getUsers"}'
+    
+    matchers:
+      - type: word
+        words:
+          - '"users"'
+          - '"admin"'
+        condition: and
+```
+
+## Example: WebSocket injection
+
+```yaml
+id: websocket-xss
+
+info:
+  name: WebSocket XSS Testing
+  author: researcher
+  severity: medium
+
+websocket:
+  - address: 'ws://{{Hostname}}/chat'
+    inputs:
+      - data: '{"message":"<script>alert(1)</script>"}'
+    
+    matchers:
+      - type: word
+        words:
+          - '<script>alert(1)</script>'
+```
+
+## Payloads with WebSocket
+
+```yaml
+id: websocket-command-injection
+
+info:
+  name: WebSocket Command Injection
+  author: researcher
+  severity: critical
+
+websocket:
+  - address: 'ws://{{Hostname}}/api/execute'
+    inputs:
+      - data: '{"cmd":"{{payload}}"}'
+    
+    payloads:
+      payload:
+        - "id"
+        - "whoami"
+        - "cat /etc/passwd"
+    
+    matchers:
+      - type: regex
+        regex:
+          - "uid=[0-9]+.*gid=[0-9]+"
+          - "root:x:[0-9]+:[0-9]+"
+        condition: or
+```
+
+## WebSocket response parts
+
+<ResponseField name="response" type="string">
+  WebSocket response messages (default)
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: response
+      words:
+        - "connected"
+  ```
+</ResponseField>
+
+<ResponseField name="request" type="string">
+  WebSocket request messages sent
+</ResponseField>
+
+<ResponseField name="success" type="boolean">
+  Whether WebSocket connection succeeded
+  
+  ```yaml
+  matchers:
+    - type: dsl
+      dsl:
+        - "success == true"
+  ```
+</ResponseField>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="WHOIS protocol" icon="address-card" href="/templates/protocols/whois">
+    Domain registration testing
+  </Card>
+  <Card title="JavaScript protocol" icon="js" href="/templates/protocols/javascript">
+    Custom protocol logic
+  </Card>
+</CardGroup>

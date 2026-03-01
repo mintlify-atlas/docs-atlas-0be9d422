@@ -1,0 +1,652 @@
+---
+title: Custom DSL functions
+description: Leverage Nuclei's Domain Specific Language (DSL) functions for advanced template logic and data manipulation
+---
+
+Nuclei includes a powerful Domain Specific Language (DSL) that provides a rich set of helper functions for template logic, data manipulation, encoding, hashing, and more. These functions enable you to write sophisticated matching conditions and transformations.
+
+## Overview
+
+DSL functions can be used in:
+
+- **Matchers**: For complex matching conditions
+- **Extractors**: For data transformation
+- **Variables**: For dynamic value generation
+- **Payloads**: For payload manipulation
+
+<Note>
+DSL functions are evaluated at runtime and have access to the complete response data, making them extremely powerful for creating dynamic templates.
+</Note>
+
+## Using DSL in matchers
+
+### Basic DSL matcher
+
+```yaml
+id: dsl-matcher-example
+
+info:
+  name: DSL matcher demonstration
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+          - "len(body) > 1000"
+          - "contains(body, 'password')"
+        condition: and
+```
+
+### Complex conditions
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "status_code == 200 && contains(tolower(body), 'admin')"
+      - "len(all_headers) > 10"
+      - "contains(content_type, 'application/json')"
+    condition: or
+```
+
+## String functions
+
+### Basic string operations
+
+```yaml
+# Convert to lowercase
+dsl:
+  - "contains(tolower(body), 'error')"
+
+# Convert to uppercase
+dsl:
+  - "contains(toupper(header), 'X-ADMIN')"
+
+# String length
+dsl:
+  - "len(body) > 5000"
+
+# String concatenation
+dsl:
+  - "concat(protocol, '://', host) == 'https://example.com'"
+
+# String replacement
+dsl:
+  - "contains(replace(body, 'password', 'pwd'), 'pwd')"
+
+# Trim whitespace
+dsl:
+  - "trim(header) == 'value'"
+
+# Reverse string
+dsl:
+  - "contains(reverse(body), 'toor')"
+```
+
+### String matching
+
+```yaml
+# Starts with
+dsl:
+  - "starts_with(body, '<!DOCTYPE')"
+
+# Ends with
+dsl:
+  - "ends_with(body, '</html>')"
+
+# Contains
+dsl:
+  - "contains(body, 'vulnerability')"
+
+# Substring
+dsl:
+  - "substr(body, 0, 5) == '<?php'"
+```
+
+## Encoding functions
+
+### Base64 operations
+
+```yaml
+# Base64 encode
+dsl:
+  - "base64('admin:password') == 'YWRtaW46cGFzc3dvcmQ='"
+
+# Base64 decode
+dsl:
+  - "base64_decode('YWRtaW46cGFzc3dvcmQ=') == 'admin:password'"
+
+# Base64 URL encoding
+dsl:
+  - "base64_url('test+value/data') == 'dGVzdCt2YWx1ZS9kYXRh'"
+```
+
+### URL encoding
+
+```yaml
+# URL encode
+dsl:
+  - "url_encode('hello world') == 'hello%20world'"
+
+# URL decode
+dsl:
+  - "url_decode('hello%20world') == 'hello world'"
+
+# HTML encode
+dsl:
+  - "html_escape('<script>') == '&lt;script&gt;'"
+
+# HTML decode
+dsl:
+  - "html_unescape('&lt;script&gt;') == '<script>'"
+```
+
+### Hex operations
+
+```yaml
+# Hex encode
+dsl:
+  - "hex_encode('ABC') == '414243'"
+
+# Hex decode
+dsl:
+  - "hex_decode('414243') == 'ABC'"
+```
+
+## Hashing functions
+
+### Common hash algorithms
+
+```yaml
+# MD5
+dsl:
+  - "md5('password') == '5f4dcc3b5aa765d61d8327deb882cf99'"
+
+# SHA256
+dsl:
+  - "sha256('test') == '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08'"
+
+# SHA1
+dsl:
+  - "sha1('password') == '5baa61e4c9b93f3f0682250b6cf8331b7ee68fd8'"
+
+# SHA512
+dsl:
+  - "len(sha512('test')) == 128"
+```
+
+### HMAC functions
+
+```yaml
+# HMAC-SHA256
+dsl:
+  - "hmac_sha256('data', 'secret') == 'expected_hash'"
+
+# HMAC-SHA1
+dsl:
+  - "hmac_sha1('data', 'secret') == 'expected_hash'"
+```
+
+## Network functions
+
+### DNS resolution
+
+```yaml
+# Resolve A record
+dsl:
+  - "resolve('example.com') == '93.184.216.34'"
+
+# Resolve AAAA record
+dsl:
+  - "resolve('example.com', '6') != ''"
+
+# Resolve CNAME
+dsl:
+  - "contains(resolve('www.example.com', 'cname'), 'example.com')"
+
+# Resolve MX record
+dsl:
+  - "contains(resolve('example.com', 'mx'), 'mail')"
+```
+
+### Port handling
+
+```yaml
+# Get network port with default
+dsl:
+  - "getNetworkPort('', '443') == '443'"
+  - "getNetworkPort('8080', '443') == '8080'"
+```
+
+## Regex functions
+
+### Regex matching
+
+```yaml
+# Regex match
+dsl:
+  - "regex('\\d+', body)"
+
+# Regex extract first match
+dsl:
+  - "regex_extract('email: ([\\w\\.]+@[\\w\\.]+)', body, 1)"
+```
+
+## Numeric functions
+
+### Mathematical operations
+
+```yaml
+# Addition
+dsl:
+  - "status_code + 100 == 300"
+
+# Subtraction
+dsl:
+  - "len(body) - 100 > 500"
+
+# Multiplication
+dsl:
+  - "len(body) * 2 > 10000"
+
+# Division
+dsl:
+  - "len(body) / 1000 > 5"
+
+# Modulo
+dsl:
+  - "status_code % 100 == 0"
+```
+
+### Comparison operators
+
+```yaml
+# Equal
+dsl:
+  - "status_code == 200"
+
+# Not equal
+dsl:
+  - "status_code != 404"
+
+# Greater than
+dsl:
+  - "len(body) > 1000"
+
+# Less than
+dsl:
+  - "duration < 500"
+
+# Greater than or equal
+dsl:
+  - "status_code >= 200 && status_code < 300"
+
+# Less than or equal
+dsl:
+  - "len(body) <= 5000"
+```
+
+## Time functions
+
+### Date and time operations
+
+```yaml
+# Current Unix timestamp
+dsl:
+  - "timestamp() > 1640000000"
+
+# Wait for time-based conditions
+dsl:
+  - "wait_for(5)"
+```
+
+## Random functions
+
+### Random data generation
+
+```yaml
+# Random lowercase string
+dsl:
+  - "len(rand_base(10)) == 10"
+
+# Random numeric string
+dsl:
+  - "len(rand_int(5)) == 5"
+
+# Random text
+dsl:
+  - "len(rand_text_alpha(15)) == 15"
+
+# Random alphanumeric
+dsl:
+  - "len(rand_text_alphanumeric(20)) == 20"
+```
+
+## Advanced DSL examples
+
+### JWT token validation
+
+```yaml
+id: jwt-validation
+
+info:
+  name: JWT token validation
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/user"
+    
+    headers:
+      Authorization: "Bearer {{token}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+          - "contains(content_type, 'application/json')"
+          - "len(split(body_string, '.')) == 3"  # JWT has 3 parts
+        condition: and
+```
+
+### Response time validation
+
+```yaml
+id: response-time-check
+
+info:
+  name: Check response time
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "duration > 5000"  # Response took more than 5 seconds
+          - "status_code == 200"
+        condition: and
+```
+
+### Content length validation
+
+```yaml
+id: content-length-check
+
+info:
+  name: Validate content length mismatch
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/download"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "len(body) != to_number(content_length)"
+          - "status_code == 200"
+        condition: and
+```
+
+### Header validation
+
+```yaml
+id: header-validation
+
+info:
+  name: Security header validation
+  author: pdteam
+  severity: low
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "!contains(tolower(all_headers), 'x-frame-options')"
+          - "!contains(tolower(all_headers), 'x-content-type-options')"
+          - "!contains(tolower(all_headers), 'strict-transport-security')"
+        condition: or
+```
+
+### Complex JSON validation
+
+```yaml
+id: json-validation
+
+info:
+  name: JSON structure validation
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/users"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+          - "contains(content_type, 'application/json')"
+          - "contains(body, '\"users\":')"
+          - "len(body) > 100"
+        condition: and
+```
+
+## Using DSL with variables
+
+### Dynamic variable generation
+
+```yaml
+id: dynamic-variables
+
+info:
+  name: Dynamic variable example
+  author: pdteam
+  severity: info
+
+variables:
+  timestamp: "{{timestamp()}}"
+  random_id: "{{rand_base(16)}}"
+  encoded: "{{base64('admin:password')}}"
+  hash: "{{md5(random_id)}}"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api?id={{random_id}}&ts={{timestamp}}"
+    
+    headers:
+      Authorization: "Basic {{encoded}}"
+      X-Request-ID: "{{hash}}"
+```
+
+## Accessing response data
+
+### Available variables
+
+```yaml
+# HTTP response variables
+dsl:
+  - "status_code"        # HTTP status code
+  - "body"               # Response body
+  - "body_string"        # Response body as string
+  - "content_length"     # Content-Length header value
+  - "content_type"       # Content-Type header value
+  - "all_headers"        # All response headers
+  - "header"             # Specific header access
+  - "duration"           # Request duration in milliseconds
+  - "host"               # Target host
+  - "matched"            # Matched URL/endpoint
+```
+
+### Header access
+
+```yaml
+# Access specific header
+dsl:
+  - "contains(tolower(header['server']), 'apache')"
+  - "header['x-powered-by'] == 'PHP/7.4'"
+
+# Check header existence
+dsl:
+  - "contains(all_headers, 'X-Custom-Header')"
+```
+
+## Debugging DSL
+
+### Print debug information
+
+Use `print_debug` function to output values during execution:
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "print_debug(status_code)"
+      - "print_debug(len(body))"
+      - "print_debug(content_type)"
+```
+
+Run with debug flag:
+
+```bash
+nuclei -t template.yaml -u https://example.com -debug
+```
+
+## Best practices
+
+<Steps>
+
+### Use appropriate functions
+
+Choose the right function for your use case:
+
+```yaml
+# Good: Use contains for substring matching
+dsl:
+  - "contains(body, 'error')"
+
+# Bad: Using regex for simple substring
+dsl:
+  - "regex('error', body)"
+```
+
+### Combine conditions efficiently
+
+Use logical operators to combine conditions:
+
+```yaml
+# Multiple conditions in one line
+dsl:
+  - "status_code == 200 && contains(body, 'success') && len(body) > 100"
+
+# Or use condition: and
+dsl:
+  - "status_code == 200"
+  - "contains(body, 'success')"
+  - "len(body) > 100"
+condition: and
+```
+
+### Handle case sensitivity
+
+Always use `tolower` or `toupper` for case-insensitive matching:
+
+```yaml
+dsl:
+  - "contains(tolower(body), 'admin')"
+  - "contains(toupper(header), 'X-ADMIN')"
+```
+
+### Validate data types
+
+Ensure proper data type handling:
+
+```yaml
+dsl:
+  - "to_number(header['content-length']) > 1000"
+  - "to_string(status_code) == '200'"
+```
+
+</Steps>
+
+<Warning>
+DSL functions are case-sensitive. Always use the exact function name as documented.
+</Warning>
+
+## Function reference
+
+For a complete list of available DSL functions, use:
+
+```bash
+nuclei -dsl-list
+```
+
+This will display all available functions with their signatures:
+
+```
+DSL Functions:
+
+base64(input string) string
+base64_decode(input string) string
+contains(input string, substring string) bool
+len(input string) int
+md5(input string) string
+regex(pattern string, input string) bool
+sha256(input string) string
+...
+```
+
+## Common patterns
+
+### Status code ranges
+
+```yaml
+dsl:
+  - "status_code >= 200 && status_code < 300"  # 2xx
+  - "status_code >= 400 && status_code < 500"  # 4xx
+  - "status_code >= 500"                        # 5xx
+```
+
+### Empty/null checks
+
+```yaml
+dsl:
+  - "len(body) > 0"
+  - "body != ''"
+  - "header['x-custom'] != ''"
+```
+
+### Multiple value matching
+
+```yaml
+dsl:
+  - "contains(body, 'error') || contains(body, 'exception') || contains(body, 'failure')"
+```
+
+## Related documentation
+
+- [Matchers](/templates/reference/matchers)
+- [Variables](/templates/reference/variables)
+- [HTTP Protocol](/templates/protocols/http)

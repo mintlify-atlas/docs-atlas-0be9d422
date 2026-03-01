@@ -1,0 +1,388 @@
+---
+title: Template syntax overview
+description: Understanding YAML structure and Nuclei template conventions
+---
+
+Nuclei templates use YAML (Yet Another Markup Language) for defining vulnerability checks. This page covers the syntax fundamentals and conventions used in template development.
+
+## YAML basics
+
+### Structure
+
+YAML uses indentation (spaces, not tabs) to define structure:
+
+```yaml
+parent:
+  child: value
+  another_child:
+    nested: data
+```
+
+<Warning>
+  **Never use tabs for indentation.** YAML requires spaces only. Most editors can be configured to insert spaces when you press Tab.
+</Warning>
+
+### Data types
+
+#### Strings
+
+```yaml
+# Unquoted
+name: Simple string value
+
+# Quoted (use for special characters)
+name: "String with: colons"
+name: 'String with "quotes"'
+
+# Multi-line
+description: |
+  This is a multi-line
+  string that preserves
+  line breaks
+```
+
+#### Numbers and booleans
+
+```yaml
+port: 443
+severity_score: 9.8
+enabled: true
+disabled: false
+```
+
+#### Lists
+
+```yaml
+# Dash notation
+tags:
+  - cve
+  - rce
+  - critical
+
+# Inline notation
+status: [200, 301, 302]
+```
+
+#### Maps/dictionaries
+
+```yaml
+info:
+  name: Template Name
+  author: researcher
+  severity: high
+```
+
+## Template structure
+
+### Required fields
+
+Every template must include:
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the template. Use lowercase with hyphens.
+  
+  ```yaml
+  id: apache-log4j-rce
+  ```
+</ParamField>
+
+<ParamField path="info" type="object" required>
+  Metadata block describing the template.
+  
+  ```yaml
+  info:
+    name: Apache Log4j Remote Code Execution
+    author: pdteam
+    severity: critical
+  ```
+</ParamField>
+
+<ParamField path="[protocol]" type="array" required>
+  One or more protocol request definitions (http, dns, tcp, etc.).
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}"
+  ```
+</ParamField>
+
+### Info block fields
+
+The `info` section contains template metadata:
+
+```yaml
+info:
+  name: Human-readable template name
+  author: username1,username2
+  severity: info|low|medium|high|critical
+  description: Detailed explanation of what is detected
+  reference:
+    - https://example.com/advisory
+    - https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-1234
+  tags: cve,cve2021,rce,apache
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 9.8
+    cve-id: CVE-2021-1234
+    cwe-id: CWE-502
+  metadata:
+    max-request: 2
+    shodan-query: http.title:"Apache Tomcat"
+  remediation: Apply the latest security patches
+```
+
+<Tabs>
+  <Tab title="Severity levels">
+    - **info**: Informational findings, no direct security impact
+    - **low**: Minor security issues with limited impact
+    - **medium**: Moderate vulnerabilities requiring attention
+    - **high**: Serious vulnerabilities with significant risk
+    - **critical**: Severe vulnerabilities requiring immediate action
+  </Tab>
+  <Tab title="Tags best practices">
+    - Use lowercase
+    - Separate with commas (no spaces)
+    - Include CVE IDs: `cve,cve2021,cve-2021-1234`
+    - Include technology: `apache,tomcat,java`
+    - Include vulnerability type: `rce,sqli,xss,lfi`
+  </Tab>
+</Tabs>
+
+## Template variables
+
+Nuclei provides built-in variables for dynamic values:
+
+### Global variables
+
+<ResponseField name="{{BaseURL}}" type="string">
+  Complete base URL including protocol (e.g., `https://example.com`)
+</ResponseField>
+
+<ResponseField name="{{Hostname}}" type="string">
+  Hostname or IP address (e.g., `example.com`)
+</ResponseField>
+
+<ResponseField name="{{Host}}" type="string">
+  Hostname with port if non-standard (e.g., `example.com:8080`)
+</ResponseField>
+
+<ResponseField name="{{Port}}" type="string">
+  Port number (e.g., `443`)
+</ResponseField>
+
+<ResponseField name="{{Scheme}}" type="string">
+  URL scheme (e.g., `https`)
+</ResponseField>
+
+<ResponseField name="{{RootURL}}" type="string">
+  Root URL without path (e.g., `https://example.com`)
+</ResponseField>
+
+<ResponseField name="{{FQDN}}" type="string">
+  Fully qualified domain name (for DNS templates)
+</ResponseField>
+
+### Usage example
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin/"
+      - "{{BaseURL}}/api/v1/users"
+    
+    headers:
+      Host: "{{Hostname}}"
+      Origin: "{{RootURL}}"
+```
+
+## Comments
+
+Use `#` for comments:
+
+```yaml
+# This is a comment
+id: example-template
+
+info:
+  name: Example  # Inline comment
+  author: pdteam
+  # This section checks for exposed files
+  severity: medium
+```
+
+## Special characters
+
+### Escaping
+
+When strings contain special YAML characters, use quotes:
+
+```yaml
+# Quotes required
+regex:
+  - "<title>([^<]+)</title>"  # Contains < >
+  - "{{BaseURL}}"              # Contains {{ }}
+  - "key: value"               # Contains :
+
+# No quotes needed
+regex:
+  - "[0-9]+"
+  - "simple-pattern"
+```
+
+### Multi-line strings
+
+<Tabs>
+  <Tab title="Literal (|)">
+    Preserves line breaks:
+    
+    ```yaml
+    raw:
+      - |
+        GET /api HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Scanner
+    ```
+  </Tab>
+  <Tab title="Folded (>)">
+    Joins lines with spaces:
+    
+    ```yaml
+    description: >
+      This is a long description
+      that will be joined into
+      a single line.
+    ```
+  </Tab>
+</Tabs>
+
+## Naming conventions
+
+### Template IDs
+
+<Tip>
+  **Good IDs**: `git-config-exposure`, `apache-log4j-rce`, `wordpress-plugin-sqli`
+  
+  **Bad IDs**: `Template1`, `my_template`, `CHECK-EVERYTHING`
+</Tip>
+
+Rules for template IDs:
+- Use lowercase letters
+- Separate words with hyphens
+- Be descriptive but concise
+- Include CVE ID if applicable: `CVE-2021-1234`
+- Use technology name: `apache-`, `nginx-`, `wordpress-`
+
+### Field names
+
+Nuclei uses kebab-case for field names:
+
+```yaml
+# Correct
+stop-at-first-match: true
+max-redirects: 5
+cookie-reuse: true
+
+# Incorrect (these won't work)
+stopAtFirstMatch: true
+max_redirects: 5
+CookieReuse: true
+```
+
+## Validation
+
+Validate your template syntax before use:
+
+```bash
+# Validate single template
+nuclei -validate -t template.yaml
+
+# Validate all templates in directory
+nuclei -validate -t ./templates/
+
+# Show detailed errors
+nuclei -validate -t template.yaml -v
+```
+
+<Note>
+  The validator checks:
+  - YAML syntax correctness
+  - Required fields presence
+  - Field type matching
+  - Matcher and extractor logic
+  - Protocol-specific requirements
+</Note>
+
+## Common syntax errors
+
+<AccordionGroup>
+  <Accordion title="Indentation errors">
+    ```yaml
+    # Wrong - inconsistent indentation
+    http:
+      - method: GET
+       path:  # Mixed spaces
+         - "{{BaseURL}}"
+    
+    # Correct
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+    ```
+  </Accordion>
+  
+  <Accordion title="Missing quotes">
+    ```yaml
+    # Wrong - special characters need quotes
+    regex:
+      - {{BaseURL}}/path
+    
+    # Correct
+    regex:
+      - "{{BaseURL}}/path"
+    ```
+  </Accordion>
+  
+  <Accordion title="Incorrect list syntax">
+    ```yaml
+    # Wrong - mixing formats
+    words:
+      - word1
+      word2
+    
+    # Correct
+    words:
+      - word1
+      - word2
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Editor support
+
+<CardGroup cols={2}>
+  <Card title="VS Code" icon="code">
+    - YAML extension by Red Hat
+    - Nuclei Template Snippets extension
+    - Configure tab-to-spaces conversion
+  </Card>
+  <Card title="JetBrains IDEs" icon="code">
+    - Built-in YAML support
+    - File > Settings > Editor > Code Style > YAML
+    - Set indent to 2 spaces
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Write your first template" icon="pencil" href="/templates/writing-first-template">
+    Follow step-by-step guide to create a working template
+  </Card>
+  <Card title="Template structure" icon="sitemap" href="/templates/template-structure">
+    Deep dive into template components
+  </Card>
+</CardGroup>

@@ -1,0 +1,429 @@
+---
+title: Troubleshooting guide
+description: Common issues and solutions for debugging Nuclei scans
+---
+
+This guide helps you diagnose and resolve common issues when running Nuclei.
+
+## Debugging options
+
+Nuclei provides several debugging flags to help you understand what's happening during scans.
+
+### Template debugging flags
+
+<AccordionGroup>
+  <Accordion title="-debug" icon="bug">
+    Prints all requests sent and responses received:
+    ```bash
+    nuclei -u https://example.com -t templates/ -debug
+    ```
+    Use this when templates aren't matching as expected.
+  </Accordion>
+
+  <Accordion title="-debug-req" icon="arrow-up">
+    Prints only the requests being sent:
+    ```bash
+    nuclei -u https://example.com -t templates/ -debug-req
+    ```
+    Useful for verifying request format and payloads.
+  </Accordion>
+
+  <Accordion title="-debug-resp" icon="arrow-down">
+    Prints only the responses received:
+    ```bash
+    nuclei -u https://example.com -t templates/ -debug-resp
+    ```
+    Useful for inspecting response content and matchers.
+  </Accordion>
+
+  <Accordion title="-svd (show variable dump)" icon="database">
+    Prints all variables pre- and post-execution:
+    ```bash
+    nuclei -u https://example.com -t template.yaml -svd
+    ```
+    Essential for debugging variable substitution and extractors.
+  </Accordion>
+
+  <Accordion title="-ldf (list DSL functions)" icon="list">
+    Lists all available helper functions:
+    ```bash
+    nuclei -ldf
+    ```
+    Reference for template development.
+  </Accordion>
+
+  <Accordion title="-elog (error log)" icon="file-exclamation">
+    Logs all errors to a file:
+    ```bash
+    nuclei -u https://example.com -elog errors.txt
+    ```
+    Helpful for large scans to track errors.
+  </Accordion>
+</AccordionGroup>
+
+### Verbose output
+
+```bash
+# Show verbose output
+nuclei -u https://example.com -v
+
+# Show templates loaded for scan
+nuclei -u https://example.com -vv
+```
+
+## Environment variables
+
+Nuclei supports environment variable switches for advanced debugging:
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `DEBUG=true` | Enables printing stack traces for all errors |
+| `SHOW_DSL_ERRORS=true` | Enables printing DSL errors (hidden by default) |
+| `HIDE_TEMPLATE_SIG_WARNING=true` | Hides template signature verification warnings |
+| `NUCLEI_LOG_ALL=true` | Log all events that were skipped in verbose mode |
+| `NUCLEI_CONFIG_DIR` | Sets custom configuration directory path |
+| `NUCLEI_TEMPLATES_DIR` | Sets custom nuclei templates directory path |
+
+### Usage examples
+
+```bash
+# Enable stack traces for errors
+DEBUG=true nuclei -u https://example.com
+
+# Show DSL function errors
+SHOW_DSL_ERRORS=true nuclei -u https://example.com -t template.yaml
+
+# Use custom template directory
+NUCLEI_TEMPLATES_DIR=/custom/path nuclei -u https://example.com
+```
+
+## Common issues
+
+### Templates not matching
+
+<Accordion title="Templates execute but don't find anything">
+**Symptoms:** Nuclei runs successfully but reports no findings when vulnerabilities should exist.
+
+**Diagnosis:**
+```bash
+# Check what requests are being sent
+nuclei -u https://example.com -t template.yaml -debug-req
+
+# Verify responses and matchers
+nuclei -u https://example.com -t template.yaml -debug-resp
+```
+
+**Common causes:**
+- Matchers too strict or incorrect
+- Target behavior different than expected
+- Variables not properly resolved
+- Path/URL construction issues
+
+**Solutions:**
+- Review matcher conditions with `-debug`
+- Check variable values with `-svd`
+- Validate template syntax with `nuclei -validate -t template.yaml`
+- Test against known vulnerable target
+</Accordion>
+
+<Accordion title="Template validation fails">
+**Symptoms:** Template fails validation check.
+
+```bash
+nuclei -validate -t template.yaml
+# [ERR] Could not validate template: template.yaml
+```
+
+**Common causes:**
+- YAML syntax errors
+- Missing required fields
+- Invalid field values
+- Unsupported template features
+
+**Solutions:**
+```bash
+# Validate with detailed output
+nuclei -validate -t template.yaml -v
+
+# Use strict syntax checking (disabled by default)
+nuclei -validate -t template.yaml
+
+# Disable strict syntax for testing
+nuclei -u target.com -t template.yaml -nss
+```
+</Accordion>
+
+### Connection issues
+
+<Accordion title="Connection timeouts">
+**Symptoms:** Scans fail with timeout errors.
+
+**Solutions:**
+```bash
+# Increase timeout (default 10 seconds)
+nuclei -u https://example.com -timeout 30
+
+# Reduce concurrency
+nuclei -u https://example.com -c 10
+
+# Reduce rate limit
+nuclei -u https://example.com -rl 50
+```
+</Accordion>
+
+<Accordion title="SSL/TLS errors">
+**Symptoms:** Certificate validation errors or TLS handshake failures.
+
+**Solutions:**
+```bash
+# Use specific SNI hostname
+nuclei -u https://example.com -sni custom.domain.com
+
+# Use ztls library (auto-fallback enabled by default)
+nuclei -u https://example.com -ztls
+```
+</Accordion>
+
+<Accordion title="DNS resolution failures">
+**Symptoms:** Cannot resolve hostnames.
+
+**Solutions:**
+```bash
+# Use custom DNS resolvers
+nuclei -u https://example.com -r resolvers.txt
+
+# Use system DNS as fallback
+nuclei -u https://example.com -sr
+```
+</Accordion>
+
+### Performance issues
+
+<Accordion title="Scans running too slow">
+**Symptoms:** Scans take excessively long to complete.
+
+**Solutions:**
+```bash
+# Increase concurrency (default 25)
+nuclei -list targets.txt -c 50
+
+# Increase rate limit (default 150 req/sec)
+nuclei -list targets.txt -rl 300
+
+# Increase bulk size (default 25)
+nuclei -list targets.txt -bs 50
+
+# Disable httpx probing if not needed
+nuclei -list targets.txt -nh
+```
+</Accordion>
+
+<Accordion title="Memory issues">
+**Symptoms:** High memory usage or out-of-memory errors.
+
+**Solutions:**
+```bash
+# Reduce concurrency
+nuclei -list targets.txt -c 10
+
+# Reduce payload concurrency
+nuclei -list targets.txt -pc 10
+
+# Limit response size
+nuclei -list targets.txt -rss 1048576  # 1MB
+
+# Use stream mode
+nuclei -list targets.txt -stream
+```
+</Accordion>
+
+### Template execution issues
+
+<Accordion title="Variables not resolved">
+**Symptoms:** Variables show as `{{variable}}` in requests.
+
+**Diagnosis:**
+```bash
+# Show variable values during execution
+nuclei -u https://example.com -t template.yaml -svd
+```
+
+**Common causes:**
+- Variable not defined in template
+- Extractor not capturing expected value
+- Typo in variable name
+- Variable scope issues in workflows
+
+**Solutions:**
+- Check variable definitions and extractors
+- Verify extractor regex patterns
+- Use `-svd` to inspect variable values
+</Accordion>
+
+<Accordion title="Interactsh not working">
+**Symptoms:** OOB (Out-of-Band) detection templates not working.
+
+**Solutions:**
+```bash
+# Use custom Interactsh server
+nuclei -u https://example.com -iserver custom.oast.pro
+
+# Provide authentication token for self-hosted instance
+nuclei -u https://example.com -iserver https://custom.oast.pro -itoken YOUR_TOKEN
+
+# Disable Interactsh if not needed
+nuclei -u https://example.com -ni
+```
+</Accordion>
+
+<Accordion title="Template signature warnings">
+**Symptoms:** Warnings about unsigned templates.
+
+```bash
+# [WRN] Executing unsigned template: template.yaml
+```
+
+**Solutions:**
+```bash
+# Hide signature warnings (if using custom templates)
+HIDE_TEMPLATE_SIG_WARNING=true nuclei -u https://example.com -t custom.yaml
+
+# Enable unsigned template execution
+nuclei -u https://example.com -t custom.yaml -code
+
+# Sign templates (for template authors)
+nuclei -sign -t template.yaml
+```
+</Accordion>
+
+### Input/target issues
+
+<Accordion title="No templates found">
+**Symptoms:** Nuclei reports no templates loaded.
+
+**Diagnosis:**
+```bash
+# List templates that would be loaded
+nuclei -tl -t path/to/templates/
+
+# Show loaded templates
+nuclei -u https://example.com -vv
+```
+
+**Solutions:**
+```bash
+# Update templates
+nuclei -update-templates
+
+# Use specific template path
+nuclei -u https://example.com -t /full/path/to/templates/
+
+# Check template directory
+ls -la ~/nuclei-templates/
+```
+</Accordion>
+
+<Accordion title="Targets not being scanned">
+**Symptoms:** Some targets in list are skipped.
+
+**Solutions:**
+```bash
+# Check max host errors (default 30)
+nuclei -list targets.txt -mhe 50
+
+# Disable max host error skip
+nuclei -list targets.txt -nmhe
+
+# Verify target file format (one per line)
+cat targets.txt
+```
+</Accordion>
+
+## Advanced debugging
+
+### Network debugging
+
+<Accordion title="Proxy debugging">
+Route Nuclei traffic through a proxy for detailed inspection:
+
+```bash
+# Use HTTP proxy
+nuclei -u https://example.com -proxy http://127.0.0.1:8080
+
+# Use SOCKS5 proxy
+nuclei -u https://example.com -proxy socks5://127.0.0.1:1080
+
+# Proxy internal requests too
+nuclei -u https://example.com -proxy http://127.0.0.1:8080 -pi
+```
+</Accordion>
+
+<Accordion title="Request tracing">
+Save all requests to a trace log:
+
+```bash
+# Log all requests
+nuclei -u https://example.com -tlog trace.log
+
+# Log errors
+nuclei -u https://example.com -elog errors.log
+```
+</Accordion>
+
+### Performance profiling
+
+```bash
+# Enable pprof server for profiling
+nuclei -u https://example.com -ep
+
+# Generate memory profile
+nuclei -u https://example.com -profile-mem memory.prof
+
+# Enable hang monitoring
+nuclei -u https://example.com -hm
+```
+
+### Health check
+
+```bash
+# Run diagnostic health check
+nuclei -health-check
+```
+
+## Getting help
+
+<Warning>
+Before reporting issues, please:
+1. Update to the latest version: `nuclei -update`
+2. Update templates: `nuclei -update-templates`
+3. Run health check: `nuclei -health-check`
+4. Gather debug output: `nuclei -u target -t template.yaml -debug`
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Get help from the community
+  </Card>
+  <Card title="GitHub issues" icon="github" href="https://github.com/projectdiscovery/nuclei/issues">
+    Report bugs and request features
+  </Card>
+  <Card title="GitHub discussions" icon="comments" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Ask questions and share ideas
+  </Card>
+  <Card title="Documentation" icon="book" href="/">
+    Browse the full documentation
+  </Card>
+</CardGroup>
+
+## Version information
+
+```bash
+# Check Nuclei version
+nuclei -version
+
+# Check templates version
+nuclei -templates-version
+
+# Show statistics during scan
+nuclei -u https://example.com -stats
+```

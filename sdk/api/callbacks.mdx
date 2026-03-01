@@ -1,0 +1,464 @@
+---
+title: Callback functions
+description: API reference for result callbacks in the Nuclei SDK
+---
+
+Callback functions allow you to process scan results in real-time as they are discovered by the Nuclei engine.
+
+## Overview
+
+Callbacks are invoked for each vulnerability or finding detected during a scan. They provide a way to:
+
+- Process results in real-time
+- Store results in custom formats
+- Send alerts or notifications
+- Implement custom filtering logic
+- Aggregate or analyze findings
+
+## Callback signature
+
+```go
+type ResultCallback func(event *output.ResultEvent)
+```
+
+The callback receives a single parameter: a pointer to `output.ResultEvent` containing all details about the finding.
+
+## ResultEvent structure
+
+The `ResultEvent` contains comprehensive information about each finding:
+
+```go
+type ResultEvent struct {
+	// Template information
+	TemplateID      string
+	TemplatePath    string
+	Info            Info
+
+	// Target information
+	Host            string
+	Matched         string
+	MatchedAt       string
+
+	// Request/Response data
+	Type            string
+	Request         string
+	Response        string
+	ExtractedResults []string
+	Metadata        map[string]interface{}
+
+	// Timestamps
+	Timestamp       time.Time
+
+	// Additional fields
+	IP              string
+	CURLCommand     string
+}
+```
+
+### Key fields
+
+<ParamField path="TemplateID" type="string">
+  Unique identifier of the template that matched
+</ParamField>
+
+<ParamField path="TemplatePath" type="string">
+  File path of the template
+</ParamField>
+
+<ParamField path="Info" type="Info">
+  Template metadata including name, severity, tags, description, etc.
+</ParamField>
+
+<ParamField path="Host" type="string">
+  Target host where the finding was discovered
+</ParamField>
+
+<ParamField path="Matched" type="string">
+  The exact matched content or pattern
+</ParamField>
+
+<ParamField path="MatchedAt" type="string">
+  The location or URL where the match occurred
+</ParamField>
+
+<ParamField path="Type" type="string">
+  Protocol type (http, dns, tcp, etc.)
+</ParamField>
+
+<ParamField path="Request" type="string">
+  The raw request that was sent
+</ParamField>
+
+<ParamField path="Response" type="string">
+  The raw response that was received
+</ParamField>
+
+<ParamField path="ExtractedResults" type="[]string">
+  Data extracted by template extractors
+</ParamField>
+
+<ParamField path="Metadata" type="map[string]interface{}">
+  Additional metadata from the template
+</ParamField>
+
+<ParamField path="Timestamp" type="time.Time">
+  When the finding was discovered
+</ParamField>
+
+<ParamField path="IP" type="string">
+  Resolved IP address of the target
+</ParamField>
+
+<ParamField path="CURLCommand" type="string">
+  CURL command to reproduce the request
+</ParamField>
+
+### Info structure
+
+The `Info` field contains template metadata:
+
+```go
+type Info struct {
+	Name        string
+	Author      []string
+	Severity    severity.Severity
+	Description string
+	Reference   []string
+	Tags        []string
+	Metadata    map[string]interface{}
+}
+```
+
+## Using callbacks
+
+### Single callback
+
+Pass a single callback function to process all results:
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/output"
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] %s found on %s\n",
+		event.Info.Severity,
+		event.TemplateID,
+		event.Host,
+	)
+})
+```
+
+### Multiple callbacks
+
+You can pass multiple callback functions:
+
+```go
+callback1 := func(event *output.ResultEvent) {
+	// Log to console
+	fmt.Printf("Found: %s\n", event.TemplateID)
+}
+
+callback2 := func(event *output.ResultEvent) {
+	// Save to database
+	saveToDatabase(event)
+}
+
+err := ne.ExecuteWithCallback(callback1, callback2)
+```
+
+### No callback (default output)
+
+Passing `nil` uses the default JSON output to stdout:
+
+```go
+err := ne.ExecuteWithCallback(nil)
+```
+
+## Callback examples
+
+### Simple console output
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] %s\n", event.TemplateID, event.Host)
+})
+```
+
+### Detailed output with severity
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] [%s] %s found on %s\n",
+		time.Now().Format("15:04:05"),
+		event.Info.Severity,
+		event.Info.Name,
+		event.Host,
+	)
+})
+```
+
+### Filter by severity
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	if event.Info.Severity == "critical" || event.Info.Severity == "high" {
+		fmt.Printf("HIGH PRIORITY: %s on %s\n", event.TemplateID, event.Host)
+		sendAlert(event)
+	}
+})
+```
+
+### Collect all results
+
+```go
+var results []*output.ResultEvent
+var mu sync.Mutex
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	mu.Lock()
+	defer mu.Unlock()
+	results = append(results, event)
+})
+
+fmt.Printf("Total findings: %d\n", len(results))
+```
+
+### Save to JSON file
+
+```go
+import (
+	"encoding/json"
+	"os"
+)
+
+file, _ := os.Create("results.json")
+defer file.Close()
+encoder := json.NewEncoder(file)
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	encoder.Encode(event)
+})
+```
+
+### Send webhook notifications
+
+```go
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+)
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	if event.Info.Severity == "critical" {
+		data, _ := json.Marshal(event)
+		http.Post(
+			"https://webhook.example.com/alerts",
+			"application/json",
+			bytes.NewBuffer(data),
+		)
+	}
+})
+```
+
+### Group by severity
+
+```go
+resultsBySeverity := make(map[string]int)
+var mu sync.Mutex
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	mu.Lock()
+	defer mu.Unlock()
+	sev := string(event.Info.Severity)
+	resultsBySeverity[sev]++
+})
+
+for severity, count := range resultsBySeverity {
+	fmt.Printf("%s: %d findings\n", severity, count)
+}
+```
+
+### Custom formatting
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf(`
+=== Finding ===
+Template: %s (%s)
+Severity: %s
+Target: %s
+Matched: %s
+Time: %s
+`,
+		event.Info.Name,
+		event.TemplateID,
+		event.Info.Severity,
+		event.Host,
+		event.Matched,
+		event.Timestamp.Format(time.RFC3339),
+	)
+})
+```
+
+### Store in database
+
+```go
+import "database/sql"
+
+db, _ := sql.Open("postgres", connStr)
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	_, err := db.Exec(`
+		INSERT INTO vulnerabilities (template_id, host, severity, timestamp)
+		VALUES ($1, $2, $3, $4)
+	`,
+		event.TemplateID,
+		event.Host,
+		event.Info.Severity,
+		event.Timestamp,
+	)
+	if err != nil {
+		log.Printf("DB error: %v", err)
+	}
+})
+```
+
+### Real-time dashboard updates
+
+```go
+import "github.com/gorilla/websocket"
+
+var wsConn *websocket.Conn // WebSocket connection to dashboard
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	data, _ := json.Marshal(map[string]interface{}{
+		"type":     "finding",
+		"template": event.TemplateID,
+		"host":     event.Host,
+		"severity": event.Info.Severity,
+	})
+	wsConn.WriteMessage(websocket.TextMessage, data)
+})
+```
+
+## Thread-safe callbacks
+
+For `ThreadSafeNucleiEngine`, use `GlobalResultCallback`:
+
+```go
+ne, _ := nuclei.NewThreadSafeNucleiEngine()
+
+ne.GlobalResultCallback(func(event *output.ResultEvent) {
+	// This callback will be used for all concurrent scans
+	fmt.Printf("[%s] %s\n", event.TemplateID, event.Host)
+})
+
+// Run multiple scans
+go ne.ExecuteNucleiWithOpts([]string{"target1.com"}, opts...)
+go ne.ExecuteNucleiWithOpts([]string{"target2.com"}, opts...)
+```
+
+<Warning>
+  When using `GlobalResultCallback` with concurrent scans, ensure your callback is thread-safe. Use mutexes when accessing shared state.
+</Warning>
+
+## Best practices
+
+<Check>Keep callbacks fast - avoid blocking operations</Check>
+<Check>Use goroutines for slow operations (database writes, API calls)</Check>
+<Check>Add mutex locks when modifying shared state</Check>
+<Check>Handle errors gracefully within callbacks</Check>
+<Check>Log callback errors instead of panicking</Check>
+<Check>Consider buffered channels for high-volume results</Check>
+
+## Common patterns
+
+### Buffered channel pattern
+
+```go
+resultChan := make(chan *output.ResultEvent, 100)
+
+// Consumer goroutine
+go func() {
+	for event := range resultChan {
+		// Process results asynchronously
+		processResult(event)
+	}
+}()
+
+// Callback pushes to channel
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	resultChan <- event
+})
+
+close(resultChan)
+```
+
+### Error handling pattern
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Callback panic: %v", r)
+		}
+	}()
+	
+	// Your callback logic
+	processEvent(event)
+})
+```
+
+### Rate limiting pattern
+
+```go
+import "golang.org/x/time/rate"
+
+limiter := rate.NewLimiter(10, 1) // 10 calls per second
+
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	limiter.Wait(context.Background())
+	sendToAPI(event)
+})
+```
+
+## Accessing extracted data
+
+Templates can extract data using extractors:
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	if len(event.ExtractedResults) > 0 {
+		fmt.Printf("Extracted data from %s:\n", event.Host)
+		for _, extracted := range event.ExtractedResults {
+			fmt.Printf("  - %s\n", extracted)
+		}
+	}
+})
+```
+
+## Metadata access
+
+Access custom metadata from templates:
+
+```go
+err := ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	if cve, ok := event.Metadata["cve-id"].(string); ok {
+		fmt.Printf("CVE: %s\n", cve)
+	}
+	if cvss, ok := event.Metadata["cvss-score"].(float64); ok {
+		fmt.Printf("CVSS: %.1f\n", cvss)
+	}
+})
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="NucleiEngine API" icon="engine" href="/sdk/api/nuclei-engine">
+    Explore engine methods
+  </Card>
+  <Card title="Options API" icon="sliders" href="/sdk/api/options">
+    Learn about all configuration options
+  </Card>
+</CardGroup>

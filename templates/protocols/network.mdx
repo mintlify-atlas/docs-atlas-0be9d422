@@ -1,0 +1,628 @@
+---
+title: Network/TCP protocol templates
+description: Create network-based Nuclei templates for TCP services and raw socket communication
+---
+
+Network (TCP) protocol templates enable testing of non-HTTP services like databases, message queues, custom protocols, and any TCP-based service.
+
+## Basic network request
+
+A simple TCP connection and response check:
+
+```yaml
+id: basic-network-example
+
+info:
+  name: Basic Network Request
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}"
+    inputs:
+      - data: "PING\r\n"
+    read-size: 1024
+    
+    matchers:
+      - type: word
+        words:
+          - "PONG"
+```
+
+<Note>
+  Both `network:` and `tcp:` keywords are supported. They are equivalent and can be used interchangeably.
+</Note>
+
+## Network request components
+
+### Host
+
+<ParamField path="host" type="array" required>
+  Target hosts to connect to. Supports hostnames, IPs, and custom ports.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}"
+        - "{{Hostname}}:9000"
+        - "192.168.1.1:8080"
+  ```
+</ParamField>
+
+### TLS connections
+
+Enable TLS by prefixing with `tls://`:
+
+```yaml
+network:
+  - host:
+      - "tls://{{Hostname}}:443"
+    inputs:
+      - data: "GET / HTTP/1.0\r\n\r\n"
+```
+
+### Inputs
+
+<ParamField path="inputs" type="array" required>
+  Data to send to the target. Supports multiple sequential inputs.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}:6379"
+      inputs:
+        - data: "INFO\r\n"
+  ```
+</ParamField>
+
+## Input types
+
+### Text input
+
+```yaml
+network:
+  - host:
+      - "{{Hostname}}:3306"
+    inputs:
+      - data: "SHOW DATABASES\r\n"
+        type: text
+```
+
+### Hex input
+
+Send binary data as hex:
+
+```yaml
+network:
+  - host:
+      - "{{Hostname}}:5000"
+    inputs:
+      - data: "504B0304"  # ZIP header
+        type: hex
+```
+
+## Reading responses
+
+### Fixed-size read
+
+<ParamField path="read-size" type="integer" default={1024}>
+  Number of bytes to read from the response.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}:22"
+      read-size: 2048
+      
+      matchers:
+        - type: word
+          words:
+            - "SSH-2.0"
+  ```
+</ParamField>
+
+### Read all
+
+<ParamField path="read-all" type="boolean" default={false}>
+  Read the entire response stream until EOF.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}:80"
+      inputs:
+        - data: "GET / HTTP/1.0\r\n\r\n"
+      read-all: true
+  ```
+</ParamField>
+
+## Multi-step interactions
+
+Send data, read response, send more data:
+
+```yaml
+id: redis-auth-test
+
+info:
+  name: Redis Authentication Test
+  author: pdteam
+  severity: medium
+
+network:
+  - host:
+      - "{{Hostname}}:6379"
+    
+    inputs:
+      - data: "AUTH {{password}}\r\n"
+        read: 1024
+      
+      - data: "INFO\r\n"
+        read: 2048
+    
+    payloads:
+      password:
+        - admin
+        - password
+        - redis
+    
+    matchers:
+      - type: word
+        words:
+          - "+OK"
+          - "redis_version"
+        condition: and
+```
+
+## Named inputs
+
+Capture responses from specific inputs for targeted matching:
+
+```yaml
+id: smtp-vrfy
+
+info:
+  name: SMTP VRFY Command
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:25"
+    
+    inputs:
+      - data: "EHLO scanner\r\n"
+        read: 1024
+        name: banner
+      
+      - data: "VRFY root\r\n"
+        read: 512
+        name: vrfy_response
+    
+    matchers:
+      - type: word
+        part: vrfy_response
+        words:
+          - "250"
+          - "252"
+        condition: or
+```
+
+## Example: SSH version detection
+
+```yaml
+id: ssh-version-detect
+
+info:
+  name: SSH Version Detection
+  author: pdteam
+  severity: info
+  description: Detects SSH server version from banner
+
+network:
+  - host:
+      - "{{Hostname}}:22"
+    read-size: 1024
+    
+    matchers:
+      - type: regex
+        regex:
+          - "SSH-([0-9.]+)"
+    
+    extractors:
+      - type: regex
+        name: ssh_version
+        regex:
+          - "SSH-([0-9.]+)-(.+)"
+        group: 2
+```
+
+## Example: MySQL banner grab
+
+```yaml
+id: mysql-detect
+
+info:
+  name: MySQL Server Detection
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:3306"
+    read-size: 512
+    
+    matchers:
+      - type: binary
+        binary:
+          - "000000"  # MySQL handshake starts with packet length
+        part: data
+      
+      - type: word
+        words:
+          - "mysql"
+        condition: or
+    
+    extractors:
+      - type: regex
+        name: mysql_version
+        regex:
+          - "([0-9]+\\.[0-9]+\\.[0-9]+)"
+        group: 1
+```
+
+## Example: Redis info dump
+
+```yaml
+id: redis-info
+
+info:
+  name: Redis Server Information
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:6379"
+    
+    inputs:
+      - data: "INFO\r\n"
+    
+    read-size: 4096
+    
+    matchers:
+      - type: word
+        words:
+          - "redis_version"
+          - "redis_mode"
+        condition: and
+    
+    extractors:
+      - type: regex
+        name: redis_version
+        regex:
+          - "redis_version:([0-9.]+)"
+        group: 1
+      
+      - type: regex
+        name: redis_mode
+        regex:
+          - "redis_mode:(\\w+)"
+        group: 1
+```
+
+## Payloads with network
+
+Test multiple credentials or inputs:
+
+```yaml
+id: service-auth-bruteforce
+
+info:
+  name: Service Authentication Test
+  author: pdteam
+  severity: medium
+
+network:
+  - host:
+      - "{{Hostname}}:{{port}}"
+    
+    inputs:
+      - data: "AUTH {{username}} {{password}}\r\n"
+    
+    payloads:
+      username:
+        - admin
+        - root
+      password:
+        - admin
+        - password
+      port:
+        - 6379  # Redis
+        - 11211 # Memcached
+    
+    attack: clusterbomb
+    threads: 5
+    
+    matchers:
+      - type: word
+        words:
+          - "+OK"
+          - "STORED"
+        condition: or
+```
+
+## Network response parts
+
+<ResponseField name="data" type="string">
+  Received data from the server (default)
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: data
+      words:
+        - "220"
+  ```
+</ResponseField>
+
+<ResponseField name="raw" type="string">
+  Complete interaction including sent and received data
+</ResponseField>
+
+<ResponseField name="request" type="string">
+  Data sent to the server
+</ResponseField>
+
+## Advanced options
+
+### Port scanning
+
+<ParamField path="port" type="string">
+  Default port or port range to scan.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}"
+      port: "8000-8100"
+      
+      inputs:
+        - data: "HEAD / HTTP/1.0\r\n\r\n"
+      
+      matchers:
+        - type: word
+          words:
+            - "HTTP/1"
+  ```
+</ParamField>
+
+### Exclude ports
+
+<ParamField path="exclude-ports" type="string">
+  Ports to skip during scanning.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}"
+      port: "8000-9000"
+      exclude-ports: "8080,8443"
+  ```
+</ParamField>
+
+### Threads
+
+<ParamField path="threads" type="integer" default={1}>
+  Number of concurrent connections.
+  
+  ```yaml
+  network:
+    - host:
+        - "{{Hostname}}"
+      port: "8000-9000"
+      threads: 10
+  ```
+</ParamField>
+
+## Matchers for network
+
+### Word matchers
+
+```yaml
+matchers:
+  - type: word
+    words:
+      - "SSH-2.0"
+      - "220 FTP"
+      - "+OK"
+    condition: or
+```
+
+### Regex matchers
+
+```yaml
+matchers:
+  - type: regex
+    regex:
+      - "MySQL ([0-9.]+)"
+      - "PostgreSQL ([0-9.]+)"
+    condition: or
+```
+
+### Binary matchers
+
+```yaml
+matchers:
+  - type: binary
+    binary:
+      - "1503"  # TLS alert
+      - "0d0a"  # CRLF
+    part: data
+```
+
+### DSL matchers
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "len(data) > 100"
+      - "contains(data, 'admin')"
+    condition: and
+```
+
+## Complete examples
+
+<CodeGroup>
+```yaml FTP Banner
+id: ftp-detect
+
+info:
+  name: FTP Service Detection
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:21"
+    read-size: 1024
+    
+    matchers:
+      - type: word
+        words:
+          - "220"
+          - "FTP"
+        condition: and
+    
+    extractors:
+      - type: regex
+        name: ftp_banner
+        regex:
+          - "220 (.+)"
+        group: 1
+```
+
+```yaml PostgreSQL
+id: postgresql-detect
+
+info:
+  name: PostgreSQL Detection
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:5432"
+    read-size: 512
+    
+    matchers:
+      - type: word
+        words:
+          - "postgres"
+          - "database"
+        condition: or
+```
+
+```yaml Telnet
+id: telnet-access
+
+info:
+  name: Telnet Access Check
+  author: pdteam
+  severity: high
+
+network:
+  - host:
+      - "{{Hostname}}:23"
+    read-size: 1024
+    
+    matchers:
+      - type: word
+        words:
+          - "login:"
+          - "Username:"
+        condition: or
+```
+</CodeGroup>
+
+## Testing tips
+
+<AccordionGroup>
+  <Accordion title="Debug network templates">
+    Use `-debug` to see raw data exchange:
+    
+    ```bash
+    nuclei -t network-template.yaml -u example.com:22 -debug
+    ```
+  </Accordion>
+  
+  <Accordion title="Test locally first">
+    Set up test services locally:
+    
+    ```bash
+    # Start Redis
+    docker run -p 6379:6379 redis
+    
+    # Test template
+    nuclei -t redis-template.yaml -u localhost:6379
+    ```
+  </Accordion>
+  
+  <Accordion title="Handle timeouts">
+    Some services are slow to respond. Increase timeout:
+    
+    ```bash
+    nuclei -t template.yaml -u host:port -timeout 30
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common protocols
+
+<CardGroup cols={3}>
+  <Card title="SSH (22)" icon="terminal">
+    Banner grabbing, version detection
+  </Card>
+  <Card title="FTP (21)" icon="folder">
+    Anonymous access, banner info
+  </Card>
+  <Card title="SMTP (25)" icon="envelope">
+    Open relay, VRFY command
+  </Card>
+  <Card title="MySQL (3306)" icon="database">
+    Version detection, authentication
+  </Card>
+  <Card title="PostgreSQL (5432)" icon="database">
+    Service fingerprinting
+  </Card>
+  <Card title="Redis (6379)" icon="server">
+    Unauthenticated access, info
+  </Card>
+  <Card title="MongoDB (27017)" icon="database">
+    Version, configuration
+  </Card>
+  <Card title="Telnet (23)" icon="terminal">
+    Banner, access control
+  </Card>
+  <Card title="LDAP (389)" icon="sitemap">
+    Anonymous bind, information
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="SSL/TLS protocol" icon="lock" href="/templates/protocols/ssl">
+    Certificate and TLS testing
+  </Card>
+  <Card title="JavaScript protocol" icon="js" href="/templates/protocols/javascript">
+    Custom protocol logic
+  </Card>
+  <Card title="Matchers" icon="filter" href="/templates/matchers">
+    Complete matcher reference
+  </Card>
+  <Card title="Payloads" icon="list" href="/templates/variables">
+    Working with payloads
+  </Card>
+</CardGroup>

@@ -1,0 +1,141 @@
+---
+title: SDK overview
+description: Use Nuclei as a Go library to integrate vulnerability scanning into your applications
+---
+
+Nuclei was primarily built as a CLI tool, but with the increasing demand from users wanting to use Nuclei as a library in their own automation, a simplified Library/SDK was added in v3.
+
+The Nuclei SDK allows you to embed the complete vulnerability scanning engine into your Go applications, giving you full programmatic control over template execution, target management, and result handling.
+
+## Key features
+
+The Nuclei SDK provides:
+
+- **Two execution modes**: Standard single-instance mode and thread-safe mode for concurrent scanning
+- **Flexible template loading**: Load templates from local files, directories, or remote sources
+- **Advanced filtering**: Filter templates by severity, tags, protocol types, authors, and more
+- **Custom callbacks**: Process scan results in real-time with custom callback functions
+- **Full configuration**: Control concurrency, rate limiting, network settings, and more
+- **Protocol support**: HTTP, DNS, TCP, SSL, WebSocket, WHOIS, JavaScript, and Code protocols
+
+## Quick start
+
+Here's a minimal example to get started:
+
+```go
+package main
+
+import (
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+)
+
+func main() {
+	// Create nuclei engine with options
+	ne, err := nuclei.NewNucleiEngine(
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{Severity: "critical"}),
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+
+	// Load targets
+	ne.LoadTargets([]string{"scanme.sh"}, false)
+
+	// Execute with callback
+	err = ne.ExecuteWithCallback(nil)
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+## Execution modes
+
+### Single instance mode
+
+Best for sequential scanning or simple automation:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{Tags: []string{"cve"}}),
+)
+```
+
+### Thread-safe mode
+
+Best for concurrent scanning with goroutines:
+
+```go
+ne, err := nuclei.NewThreadSafeNucleiEngine()
+if err != nil {
+	panic(err)
+}
+
+// Run multiple scans concurrently
+go func() {
+	err = ne.ExecuteNucleiWithOpts([]string{"target1.com"},
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{ProtocolTypes: "http"}),
+	)
+}()
+
+go func() {
+	err = ne.ExecuteNucleiWithOpts([]string{"target2.com"},
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{ProtocolTypes: "dns"}),
+	)
+}()
+```
+
+## Common use cases
+
+<CardGroup cols={2}>
+  <Card title="CI/CD integration" icon="gears">
+    Integrate security scanning into your build pipelines
+  </Card>
+  <Card title="Custom automation" icon="robot">
+    Build custom security automation workflows
+  </Card>
+  <Card title="Bug bounty tools" icon="bug">
+    Create specialized tooling for bug bounty hunting
+  </Card>
+  <Card title="Security platforms" icon="shield">
+    Embed vulnerability scanning in security platforms
+  </Card>
+</CardGroup>
+
+## Architecture
+
+The Nuclei SDK consists of several core components:
+
+- **NucleiEngine**: Main engine instance that orchestrates scanning
+- **Template loader**: Loads and compiles templates based on filters
+- **Input provider**: Manages target URLs/domains/IPs
+- **Executor**: Executes templates against targets
+- **Output writer**: Handles scan results and callbacks
+
+## Important considerations
+
+<Warning>
+  This project is in active development. Expect breaking changes with releases. Review the release changelog before updating.
+</Warning>
+
+<Warning>
+  Nuclei was primarily built to be used as a standalone CLI tool. Running Nuclei as a service may pose security risks. It's recommended to use with caution and additional security measures.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/sdk/installation">
+    Install the Nuclei SDK in your Go project
+  </Card>
+  <Card title="Basic usage" icon="play" href="/sdk/basic-usage">
+    Learn the fundamentals with examples
+  </Card>
+  <Card title="API reference" icon="code" href="/sdk/api/nuclei-engine">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Advanced patterns" icon="star" href="/sdk/advanced-usage">
+    Master advanced scanning techniques
+  </Card>
+</CardGroup>

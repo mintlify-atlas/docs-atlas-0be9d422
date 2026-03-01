@@ -1,0 +1,788 @@
+---
+title: HTTP protocol templates
+description: Complete guide to creating HTTP-based Nuclei templates for web application testing
+---
+
+HTTP is the most commonly used protocol in Nuclei templates for testing web applications, APIs, and HTTP-based services.
+
+## Basic HTTP request
+
+The simplest HTTP template sends a GET request:
+
+```yaml
+id: basic-http-example
+
+info:
+  name: Basic HTTP Request
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/status"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+## HTTP request methods
+
+### Simple method definition
+
+<ParamField path="method" type="string">
+  HTTP method to use for the request.
+  
+  **Supported methods**: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`, `TRACE`, `CONNECT`
+  
+  ```yaml
+  http:
+    - method: POST
+      path:
+        - "{{BaseURL}}/api/data"
+  ```
+</ParamField>
+
+### Multiple paths
+
+Test multiple endpoints with the same request configuration:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+      - "{{BaseURL}}/administrator"
+      - "{{BaseURL}}/wp-admin"
+      - "{{BaseURL}}/phpmyadmin"
+    
+    stop-at-first-match: true
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+## Request formats
+
+### Path-based requests
+
+Simple URL path definition:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+      - "{{BaseURL}}/.env"
+    
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+          - "DB_PASSWORD"
+        condition: or
+```
+
+### Raw HTTP requests
+
+Full control over the HTTP request:
+
+```yaml
+http:
+  - raw:
+      - |
+        GET /api/v1/users HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: CustomScanner/1.0
+        Accept: application/json
+        Authorization: Bearer {{token}}
+    
+    matchers:
+      - type: word
+        words:
+          - '"users"'
+```
+
+<Tip>
+  Raw requests give you complete control over headers, method, and body. Use them for:
+  - Custom header manipulation
+  - Testing with specific User-Agents
+  - Exact request replication from Burp/ZAP
+</Tip>
+
+## Request components
+
+### Headers
+
+<ParamField path="headers" type="object">
+  Custom headers to include in the request.
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/api"
+      headers:
+        X-API-Key: "test123"
+        Content-Type: "application/json"
+        Authorization: "Bearer {{token}}"
+  ```
+</ParamField>
+
+### Body
+
+<ParamField path="body" type="string">
+  Request body for POST, PUT, PATCH requests.
+  
+  ```yaml
+  http:
+    - method: POST
+      path:
+        - "{{BaseURL}}/api/login"
+      headers:
+        Content-Type: application/json
+      body: |
+        {
+          "username": "admin",
+          "password": "{{password}}"
+        }
+  ```
+</ParamField>
+
+### Request example with all components
+
+```yaml
+id: api-authentication-test
+
+info:
+  name: API Authentication Test
+  author: researcher
+  severity: medium
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/v2/auth/login"
+    
+    headers:
+      Content-Type: application/json
+      X-Client-Version: "1.0"
+      Origin: "{{RootURL}}"
+    
+    body: |
+      {
+        "username": "test@example.com",
+        "password": "password123",
+        "remember": true
+      }
+    
+    matchers:
+      - type: word
+        words:
+          - '"token"'
+          - '"success":true'
+        condition: and
+    
+    extractors:
+      - type: json
+        name: auth_token
+        json:
+          - ".data.token"
+```
+
+## Variables in HTTP templates
+
+Use template variables for dynamic values:
+
+```yaml
+id: variables-example
+
+info:
+  name: HTTP Variables Example
+  author: pdteam
+  severity: info
+
+variables:
+  random_id: "{{rand_int(1000, 9999)}}"
+  encoded_host: "{{base64(Hostname)}}"
+  timestamp: "{{unix_time()}}"
+
+http:
+  - raw:
+      - |
+        GET /?id={{random_id}} HTTP/1.1
+        Host: {{Hostname}}
+        X-Custom-Header: {{encoded_host}}
+        X-Timestamp: {{timestamp}}
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+## Payloads and fuzzing
+
+### Simple payloads
+
+<ParamField path="payloads" type="object">
+  Define payload sets for parameter fuzzing.
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/api?username={{username}}"
+      
+      payloads:
+        username:
+          - admin
+          - administrator
+          - root
+          - test
+      
+      attack: batteringram
+  ```
+</ParamField>
+
+### Attack types
+
+<Tabs>
+  <Tab title="Batteringram">
+    Inserts same payload into all positions simultaneously:
+    
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/search?q={{payload}}&type={{payload}}"
+        
+        payloads:
+          payload:
+            - "'"
+            - '"><script>alert(1)</script>'
+        
+        attack: batteringram
+    ```
+  </Tab>
+  
+  <Tab title="Pitchfork">
+    Iterates through payloads in parallel:
+    
+    ```yaml
+    http:
+      - method: POST
+        path:
+          - "{{BaseURL}}/login"
+        body: "user={{user}}&pass={{pass}}"
+        
+        payloads:
+          user:
+            - admin
+            - root
+          pass:
+            - admin123
+            - root123
+        
+        attack: pitchfork
+    ```
+    
+    Tries: admin/admin123, root/root123
+  </Tab>
+  
+  <Tab title="Clusterbomb">
+    Tests all combinations:
+    
+    ```yaml
+    http:
+      - method: POST
+        path:
+          - "{{BaseURL}}/login"
+        body: "user={{user}}&pass={{pass}}"
+        
+        payloads:
+          user:
+            - admin
+            - root
+          pass:
+            - password
+            - 12345
+        
+        attack: clusterbomb
+    ```
+    
+    Tries: admin/password, admin/12345, root/password, root/12345
+  </Tab>
+</Tabs>
+
+### External payload files
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api?key={{key}}"
+    
+    payloads:
+      key: keys.txt  # One payload per line
+    
+    attack: batteringram
+```
+
+## Multi-step HTTP requests
+
+Chain requests together with data passing:
+
+```yaml
+id: multi-step-auth
+
+info:
+  name: Multi-Step Authentication Flow
+  author: researcher
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/login"
+    
+    extractors:
+      - type: regex
+        name: csrf_token
+        internal: true
+        regex:
+          - 'name="csrf_token" value="([^"]+)"'
+        group: 1
+  
+  - method: POST
+    path:
+      - "{{BaseURL}}/login"
+    
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    
+    body: "username=admin&password=test&csrf_token={{csrf_token}}"
+    
+    extractors:
+      - type: regex
+        name: session_id
+        internal: true
+        regex:
+          - 'session_id=([A-Za-z0-9]+)'
+        group: 1
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin/users"
+    
+    headers:
+      Cookie: "session_id={{session_id}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "User Management"
+          - "Delete User"
+        condition: and
+```
+
+## Request conditions
+
+Execute requests based on previous results:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/version"
+    
+    matchers:
+      - type: word
+        name: version_1
+        words:
+          - '"version":"1.'
+    
+    matchers-condition: or
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/v1/exploit"
+    
+    req-condition: true
+    matchers:
+      - type: word
+        words:
+          - "vulnerable"
+```
+
+## Advanced features
+
+### Cookie handling
+
+<ParamField path="cookie-reuse" type="boolean" default={false}>
+  Automatically reuse cookies across requests in the same template.
+  
+  ```yaml
+  http:
+    - method: POST
+      path:
+        - "{{BaseURL}}/login"
+      body: "user=admin&pass=test"
+      cookie-reuse: true
+    
+    - method: GET
+      path:
+        - "{{BaseURL}}/admin"  # Cookies from login are sent
+  ```
+</ParamField>
+
+<ParamField path="disable-cookie" type="boolean" default={false}>
+  Disable automatic cookie handling.
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/api"
+      disable-cookie: true
+  ```
+</ParamField>
+
+### Redirects
+
+<ParamField path="redirects" type="boolean" default={false}>
+  Follow HTTP redirects.
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/redirect"
+      redirects: true
+      max-redirects: 3
+  ```
+</ParamField>
+
+<ParamField path="host-redirects" type="boolean" default={false}>
+  Only follow redirects to the same host.
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/external-redirect"
+      host-redirects: true
+  ```
+</ParamField>
+
+### Race conditions
+
+<ParamField path="race" type="boolean" default={false}>
+  Send multiple requests simultaneously for race condition testing.
+  
+  ```yaml
+  http:
+    - method: POST
+      path:
+        - "{{BaseURL}}/api/coupon"
+      body: "code=DISCOUNT50"
+      
+      race: true
+      race_count: 10
+      
+      matchers:
+        - type: word
+          words:
+            - "Coupon applied successfully"
+  ```
+</ParamField>
+
+### Unsafe/Raw HTTP
+
+<ParamField path="unsafe" type="boolean" default={false}>
+  Use rawhttp engine for non-RFC compliant requests.
+  
+  ```yaml
+  http:
+    - raw:
+        - |
+          GET /path HTTP/1.1
+          Host: {{Hostname}}
+          Transfer-Encoding: chunked
+          Content-Length: 4
+          
+          DATA
+      
+      unsafe: true
+  ```
+</ParamField>
+
+### Request size limits
+
+<ParamField path="max-size" type="integer">
+  Maximum response body size to read (in bytes).
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/large-file.zip"
+      max-size: 10240  # 10KB
+  ```
+</ParamField>
+
+### Concurrency
+
+<ParamField path="threads" type="integer" default={1}>
+  Number of concurrent requests (enables connection pooling).
+  
+  ```yaml
+  http:
+    - method: GET
+      path:
+        - "{{BaseURL}}/api?id={{id}}"
+      
+      payloads:
+        id: ids.txt  # Large list
+      
+      threads: 10
+  ```
+</ParamField>
+
+## HTTP response parts
+
+Specify which part of the response to match/extract:
+
+<ResponseField name="body" type="string">
+  Response body content (default)
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: body
+      words:
+        - "admin"
+  ```
+</ResponseField>
+
+<ResponseField name="header" type="string">
+  Response headers
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: header
+      words:
+        - "X-Powered-By: PHP"
+  ```
+</ResponseField>
+
+<ResponseField name="all" type="string">
+  Headers and body combined
+  
+  ```yaml
+  matchers:
+    - type: regex
+      part: all
+      regex:
+        - "Server: Apache.*\n.*admin panel"
+  ```
+</ResponseField>
+
+<ResponseField name="status_code" type="integer">
+  HTTP status code
+  
+  ```yaml
+  matchers:
+    - type: dsl
+      dsl:
+        - "status_code == 200"
+  ```
+</ResponseField>
+
+<ResponseField name="raw" type="string">
+  Complete raw response including status line
+</ResponseField>
+
+<ResponseField name="request" type="string">
+  The sent request
+</ResponseField>
+
+## Authentication
+
+### Basic Auth
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    headers:
+      Authorization: "Basic {{base64('admin:password')}}"
+```
+
+### Bearer Token
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      Authorization: "Bearer {{token}}"
+```
+
+### Digest Auth
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/protected"
+    
+    digest-username: admin
+    digest-password: secret
+```
+
+## Complete examples
+
+<CodeGroup>
+```yaml Basic GET
+id: http-get-example
+
+info:
+  name: Basic HTTP GET
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/robots.txt"
+    
+    matchers:
+      - type: word
+        words:
+          - "Disallow:"
+```
+
+```yaml POST with JSON
+id: http-post-json
+
+info:
+  name: HTTP POST JSON
+  author: pdteam
+  severity: info
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/users"
+    
+    headers:
+      Content-Type: application/json
+    
+    body: |
+      {
+        "username": "test",
+        "email": "test@example.com"
+      }
+    
+    matchers:
+      - type: status
+        status:
+          - 201
+      
+      - type: word
+        words:
+          - '"success":true'
+```
+
+```yaml Multi-Step
+id: http-multi-step
+
+info:
+  name: Multi-Step HTTP
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/token"
+    
+    extractors:
+      - type: json
+        name: api_token
+        internal: true
+        json:
+          - ".token"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/sensitive"
+    
+    headers:
+      X-API-Token: "{{api_token}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "confidential"
+```
+</CodeGroup>
+
+## Testing tips
+
+<AccordionGroup>
+  <Accordion title="Debug requests">
+    Use `-debug` flag to see full request/response:
+    
+    ```bash
+    nuclei -t template.yaml -u https://example.com -debug
+    ```
+  </Accordion>
+  
+  <Accordion title="Test matchers individually">
+    Comment out `matchers-condition` to see which matchers are firing:
+    
+    ```yaml
+    # matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        words:
+          - "admin"
+    ```
+  </Accordion>
+  
+  <Accordion title="Verbose output">
+    See why templates didn't match:
+    
+    ```bash
+    nuclei -t template.yaml -u https://example.com -v
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="DNS protocol" icon="network-wired" href="/templates/protocols/dns">
+    DNS queries and enumeration
+  </Card>
+  <Card title="Matchers" icon="filter" href="/templates/matchers">
+    Complete matcher reference
+  </Card>
+  <Card title="Extractors" icon="scissors" href="/templates/extractors">
+    Data extraction guide
+  </Card>
+  <Card title="Helper functions" icon="function" href="/templates/helper-functions">
+    DSL functions for HTTP
+  </Card>
+</CardGroup>

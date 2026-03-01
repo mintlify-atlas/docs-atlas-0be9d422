@@ -1,0 +1,468 @@
+---
+title: Cloud platform integration
+description: Integrate Nuclei with cloud platforms including AWS, Azure, and cloud template storage
+---
+
+Nuclei provides seamless integration with cloud platforms for template storage, credential management, and cloud-native security testing. This enables organizations to maintain centralized template repositories and perform security assessments across cloud infrastructure.
+
+## Overview
+
+Nuclei supports integration with major cloud platforms for:
+
+- Template storage in cloud buckets (AWS S3, Azure Blob Storage)
+- AWS request signing for authenticated API testing
+- Cloud-based template distribution
+- Custom template repositories
+
+<Note>
+Cloud integrations enable teams to maintain private template collections and perform authenticated security testing against cloud services.
+</Note>
+
+## AWS integration
+
+### S3 template storage
+
+Store and load templates from AWS S3 buckets:
+
+```bash
+# Using default AWS credentials
+nuclei -u https://example.com -s3-bucket my-nuclei-templates
+
+# Using specific AWS profile
+nuclei -u https://example.com -s3-bucket my-templates -aws-profile production
+
+# Specify custom region
+nuclei -u https://example.com -s3-bucket my-templates -aws-region us-west-2
+```
+
+### AWS credentials configuration
+
+Nuclei supports multiple methods for AWS authentication:
+
+<Steps>
+
+### Environment variables
+
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="us-east-1"
+```
+
+### AWS credentials file
+
+Use `~/.aws/credentials` file:
+
+```ini
+[default]
+aws_access_key_id = YOUR_ACCESS_KEY
+aws_secret_access_key = YOUR_SECRET_KEY
+
+[production]
+aws_access_key_id = PROD_ACCESS_KEY
+aws_secret_access_key = PROD_SECRET_KEY
+```
+
+### IAM roles
+
+When running on EC2 instances or containers, use IAM roles for automatic credential management.
+
+</Steps>
+
+### AWS SigV4 signing
+
+Sign HTTP requests using AWS Signature Version 4 for testing AWS services:
+
+```yaml
+id: aws-api-test
+
+info:
+  name: AWS API authenticated request
+  author: pdteam
+  severity: info
+
+variables:
+  aws-id: "{{aws_access_key}}"
+  aws-secret: "{{aws_secret_key}}"
+  aws-service: "s3"
+  aws-region: "us-east-1"
+
+http:
+  - raw:
+      - |
+        GET /bucket-name HTTP/1.1
+        Host: s3.us-east-1.amazonaws.com
+        
+    signature:
+      aws-id: "{{aws-id}}"
+      aws-secret: "{{aws-secret}}"
+      aws-service: "{{aws-service}}"
+      aws-region: "{{aws-region}}"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+### Testing AWS services
+
+Example template for testing S3 bucket configurations:
+
+```yaml
+id: s3-bucket-public-access
+
+info:
+  name: S3 bucket public access detection
+  author: pdteam
+  severity: high
+  description: Detects publicly accessible S3 buckets
+  reference:
+    - https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-overview.html
+  tags: aws,s3,misconfig
+
+variables:
+  bucket: "{{bucket_name}}"
+
+http:
+  - method: GET
+    path:
+      - "https://{{bucket}}.s3.amazonaws.com/"
+      - "https://s3.amazonaws.com/{{bucket}}/"
+    
+    stop-at-first-match: true
+    
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      
+      - type: word
+        words:
+          - "<ListBucketResult"
+      
+      - type: word
+        words:
+          - "<Contents>"
+```
+
+## Azure integration
+
+### Azure Blob Storage templates
+
+Load templates from Azure Blob Storage:
+
+```bash
+# Using default Azure authentication
+nuclei -u https://example.com -azure-container nuclei-templates
+
+# Specify storage account
+nuclei -u https://example.com -azure-container templates -azure-account myaccount
+```
+
+### Azure authentication
+
+Nuclei supports Azure authentication through:
+
+- **Environment variables**: `AZURE_STORAGE_ACCOUNT` and `AZURE_STORAGE_KEY`
+- **Azure CLI**: Automatic authentication if Azure CLI is configured
+- **Managed Identity**: When running on Azure VMs or containers
+
+### Azure Blob Storage configuration
+
+```bash
+# Set environment variables
+export AZURE_STORAGE_ACCOUNT="mystorageaccount"
+export AZURE_STORAGE_KEY="your-storage-key"
+
+# Or use connection string
+export AZURE_STORAGE_CONNECTION_STRING="DefaultEndpointsProtocol=https;AccountName=..."
+```
+
+### Testing Azure services
+
+```yaml
+id: azure-blob-public-access
+
+info:
+  name: Azure Blob Storage public access
+  author: pdteam
+  severity: high
+  tags: azure,blob,misconfig
+
+http:
+  - method: GET
+    path:
+      - "https://{{account}}.blob.core.windows.net/{{container}}?restype=container&comp=list"
+    
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      
+      - type: word
+        words:
+          - "<Blobs>"
+          - "<Name>"
+```
+
+## Cloud template repositories
+
+### ProjectDiscovery Cloud
+
+Access templates from ProjectDiscovery's cloud platform:
+
+```bash
+# Authenticate with API key
+export PDCP_API_KEY="your-api-key"
+
+# Use cloud templates
+nuclei -u https://example.com -cloud-templates
+```
+
+### Private template repositories
+
+Organizations can host private template repositories:
+
+```bash
+# Configure custom template URL
+nuclei -u target.com -templates-url https://internal.company.com/templates/
+```
+
+## Custom S3 template repository
+
+### Repository structure
+
+Organize templates in S3 with the following structure:
+
+```
+s3://my-nuclei-templates/
+├── cves/
+│   ├── 2024/
+│   │   └── CVE-2024-1234.yaml
+│   └── 2023/
+│       └── CVE-2023-5678.yaml
+├── exposures/
+│   ├── configs/
+│   └── files/
+├── vulnerabilities/
+│   ├── sql-injection/
+│   └── xss/
+└── custom/
+    └── company-specific/
+```
+
+### Setup script example
+
+```bash
+#!/bin/bash
+
+# Create S3 bucket
+aws s3 mb s3://my-nuclei-templates --region us-east-1
+
+# Set bucket policy for team access
+aws s3api put-bucket-policy --bucket my-nuclei-templates --policy file://policy.json
+
+# Sync templates to S3
+aws s3 sync ./templates/ s3://my-nuclei-templates/ --exclude "*.md"
+
+# Run Nuclei with S3 templates
+nuclei -u https://target.com -s3-bucket my-nuclei-templates
+```
+
+### Bucket policy example
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowTeamRead",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::123456789012:role/NucleiScannerRole"
+      },
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::my-nuclei-templates",
+        "arn:aws:s3:::my-nuclei-templates/*"
+      ]
+    }
+  ]
+}
+```
+
+## CI/CD integration
+
+### GitHub Actions with S3
+
+```yaml
+name: Security Scan with Cloud Templates
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+          aws-region: us-east-1
+      
+      - name: Run Nuclei with S3 templates
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: https://example.com
+          flags: "-s3-bucket my-nuclei-templates"
+```
+
+### GitLab CI with Azure
+
+```yaml
+security_scan:
+  image: projectdiscovery/nuclei:latest
+  script:
+    - export AZURE_STORAGE_ACCOUNT=$AZURE_ACCOUNT
+    - export AZURE_STORAGE_KEY=$AZURE_KEY
+    - nuclei -u $TARGET_URL -azure-container nuclei-templates
+  only:
+    - schedules
+```
+
+## Template synchronization
+
+### Automated sync script
+
+```bash
+#!/bin/bash
+
+# Sync templates from Git to S3
+git clone https://github.com/your-org/nuclei-templates.git
+cd nuclei-templates
+
+# Upload to S3
+aws s3 sync . s3://my-nuclei-templates/ \
+  --exclude ".git/*" \
+  --exclude "*.md" \
+  --delete
+
+# Upload to Azure
+az storage blob upload-batch \
+  --account-name mystorageaccount \
+  --destination nuclei-templates \
+  --source . \
+  --pattern "*.yaml"
+```
+
+## Best practices
+
+<Steps>
+
+### Use IAM roles
+
+Always prefer IAM roles over access keys for better security:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::my-nuclei-templates",
+        "arn:aws:s3:::my-nuclei-templates/*"
+      ]
+    }
+  ]
+}
+```
+
+### Enable versioning
+
+Enable versioning on S3 buckets to track template changes:
+
+```bash
+aws s3api put-bucket-versioning \
+  --bucket my-nuclei-templates \
+  --versioning-configuration Status=Enabled
+```
+
+### Implement access logging
+
+Enable access logging for audit trails:
+
+```bash
+aws s3api put-bucket-logging \
+  --bucket my-nuclei-templates \
+  --bucket-logging-status file://logging.json
+```
+
+### Use encryption
+
+Enable server-side encryption:
+
+```bash
+aws s3api put-bucket-encryption \
+  --bucket my-nuclei-templates \
+  --server-side-encryption-configuration file://encryption.json
+```
+
+</Steps>
+
+<Warning>
+Always follow the principle of least privilege when configuring cloud access. Grant only the minimum permissions required for Nuclei to function.
+</Warning>
+
+## Troubleshooting
+
+### AWS authentication issues
+
+```bash
+# Verify AWS credentials
+aws sts get-caller-identity
+
+# Test S3 access
+aws s3 ls s3://my-nuclei-templates/
+
+# Enable debug mode
+nuclei -u target.com -s3-bucket my-templates -debug
+```
+
+### Azure authentication issues
+
+```bash
+# Verify Azure login
+az account show
+
+# Test blob access
+az storage blob list --account-name myaccount --container-name templates
+
+# Check environment variables
+echo $AZURE_STORAGE_ACCOUNT
+echo $AZURE_STORAGE_KEY
+```
+
+## Related documentation
+
+- [Template Guide](/templates/introduction)
+- [AWS SigV4 Signing](https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html)
+- [Azure Storage Authentication](https://learn.microsoft.com/en-us/azure/storage/common/storage-auth)

@@ -1,0 +1,731 @@
+---
+title: Flow control
+description: JavaScript-based conditional execution and request orchestration
+---
+
+Flow control is a powerful template engine introduced in Nuclei v3 that enables conditional execution and request orchestration using JavaScript (ECMAScript 5.1). It provides two-way bindings between JavaScript and Nuclei, allowing you to write complex template logic with full programmatic control.
+
+## Why flow control
+
+Flow control solves two major limitations of traditional templates:
+
+1. **Conditional execution** - Execute requests only when certain conditions are met
+2. **Request orchestration** - Control execution order, iterate over values, and implement custom logic
+
+<Note>
+  Flow uses [Goja](https://github.com/dop251/goja) as the JavaScript runtime engine (ECMAScript 5.1 compatible).
+</Note>
+
+## Basic flow syntax
+
+Add a `flow` field to your template with JavaScript code:
+
+<Tabs>
+  <Tab title="Simple">
+    ```yaml
+    id: flow-example
+    
+    info:
+      name: Simple Flow Example
+      author: pdteam
+      severity: info
+    
+    flow: http(1) && http(2)
+    
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/step1"
+      
+      - method: GET
+        path:
+          - "{{BaseURL}}/step2"
+    ```
+  </Tab>
+  
+  <Tab title="Multi-line">
+    ```yaml
+    id: flow-multiline
+    
+    info:
+      name: Multi-line Flow
+      author: pdteam
+      severity: info
+    
+    flow: |
+      http(1);
+      if (template["emails"]) {
+        for (let email of template["emails"]) {
+          set("email", email);
+          http(2);
+        }
+      }
+    
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+        extractors:
+          - type: regex
+            name: emails
+            internal: true
+            regex:
+              - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+      
+      - method: GET
+        path:
+          - "{{BaseURL}}/user?email={{email}}"
+    ```
+  </Tab>
+</Tabs>
+
+## Protocol execution functions
+
+Flow provides functions to execute protocol requests:
+
+<ParamField path="http()" type="boolean">
+  Execute all HTTP requests.
+  
+  ```javascript
+  http();
+  ```
+</ParamField>
+
+<ParamField path="http(id)" type="boolean">
+  Execute specific HTTP request by ID or index.
+  
+  ```javascript
+  http("login");  // By ID
+  http(1);        // By index (0-based)
+  ```
+</ParamField>
+
+<ParamField path="dns()" type="boolean">
+  Execute DNS requests.
+  
+  ```javascript
+  dns();
+  ```
+</ParamField>
+
+<ParamField path="ssl()" type="boolean">
+  Execute SSL/TLS requests.
+  
+  ```javascript
+  ssl();
+  ```
+</ParamField>
+
+<ParamField path="tcp()" type="boolean">
+  Execute network/TCP requests.
+  
+  ```javascript
+  tcp();
+  ```
+</ParamField>
+
+All protocol functions return a boolean indicating whether the request matched.
+
+## Template context functions
+
+<ParamField path="set(name, value)" type="void">
+  Create or update a variable in template context.
+  
+  ```javascript
+  set("token", "abc123");
+  set("count", 42);
+  ```
+</ParamField>
+
+<ParamField path="template[name]" type="any">
+  Get a value from template context (extracted values, variables).
+  
+  ```javascript
+  let emails = template["emails"];
+  let token = template["auth_token"];
+  ```
+</ParamField>
+
+## Helper functions
+
+<ParamField path="iterate(value1, value2, ...)" type="array">
+  Safely iterate over any value type (arrays, objects, strings, numbers), handling null/empty values.
+  
+  ```javascript
+  for (let item of iterate(template["items"])) {
+    set("item", item);
+    http();
+  }
+  ```
+</ParamField>
+
+<ParamField path="log(message)" type="void">
+  Print message to stdout (for debugging).
+  
+  ```javascript
+  log("Current token: " + template["token"]);
+  ```
+</ParamField>
+
+## Conditional execution
+
+Execute requests only when conditions are met:
+
+<CodeGroup>
+```yaml WordPress Brute Force
+id: wordpress-bruteforce
+
+info:
+  name: WordPress Login Bruteforce
+  author: pdteam
+  severity: high
+
+flow: http("check-wp") && http("bruteforce")
+
+http:
+  - id: check-wp
+    method: GET
+    path:
+      - "{{BaseURL}}/wp-login.php"
+    
+    matchers:
+      - type: word
+        condition: and
+        words:
+          - "WordPress"
+          - "wp-content"
+        internal: true
+  
+  - id: bruteforce
+    method: POST
+    path:
+      - "{{BaseURL}}/wp-login.php"
+    body: "log={{username}}&pwd={{password}}&wp-submit=Log+In"
+    attack: clusterbomb
+    payloads:
+      username:
+        - admin
+        - guest
+      password:
+        - password123
+        - admin123
+    
+    matchers:
+      - type: word
+        negative: true
+        words:
+          - "ERROR"
+```
+
+```yaml DNS to HTTP Flow
+id: ghost-blog-detection
+
+info:
+  name: Ghost Blog Detection
+  author: pdteam
+  severity: info
+
+flow: dns() && http()
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    matchers:
+      - type: word
+        words:
+          - ".vercel-dns.com"
+        internal: true
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "html>"
+```
+</CodeGroup>
+
+## Request orchestration
+
+Iterate over extracted values and execute requests for each:
+
+<CodeGroup>
+```yaml Extract and Iterate
+id: extract-emails
+
+info:
+  name: Extract Email IDs from Response
+  author: pdteam
+  severity: info
+
+flow: |
+  http(1);
+  for (let email of template["emails"]) {
+    set("email", email);
+    http(2);
+  }
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    extractors:
+      - type: regex
+        name: emails
+        internal: true
+        regex:
+          - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/user/{{base64(email)}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "Welcome"
+```
+
+```yaml DNS NS Probe
+id: dns-ns-probe
+
+info:
+  name: DNS Nameserver Probe
+  author: pdteam
+  severity: info
+
+flow: |
+  dns("fetch-ns");
+  for (let ns of template["nameservers"]) {
+    set("nameserver", ns);
+    dns("probe-ns");
+  }
+
+dns:
+  - id: fetch-ns
+    name: "{{FQDN}}"
+    type: NS
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tNS"
+        internal: true
+    
+    extractors:
+      - type: regex
+        name: nameservers
+        internal: true
+        group: 1
+        regex:
+          - "IN\tNS\t(.+)"
+  
+  - id: probe-ns
+    name: "{{nameserver}}"
+    type: A
+```
+</CodeGroup>
+
+## Advanced patterns
+
+### VHost enumeration
+
+```yaml
+id: vhost-enum-flow
+
+info:
+  name: VHost Enumeration
+  author: pdteam
+  severity: info
+
+flow: |
+  ssl();
+  dns();
+  
+  // Collect all potential vhosts
+  let vhosts = [];
+  
+  // Add subject CN if exists
+  if (template["ssl_subject_cn"]) {
+    vhosts.push(template["ssl_subject_cn"].replace("*.", ""));
+  }
+  
+  // Add subject alternative names
+  if (template["ssl_subject_an"]) {
+    for (let san of iterate(template["ssl_subject_an"])) {
+      vhosts.push(san.replace("*.", ""));
+    }
+  }
+  
+  // Add PTR record
+  if (template["ptr_record"]) {
+    vhosts.push(template["ptr_record"].replace(/\.$/, ""));
+  }
+  
+  // Test each vhost
+  for (let vhost of vhosts) {
+    set("vhost", vhost);
+    http();
+  }
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+
+dns:
+  - name: "{{FQDN}}"
+    type: PTR
+    extractors:
+      - type: regex
+        name: ptr_record
+        internal: true
+        group: 1
+        regex:
+          - "IN\tPTR\t(.+)"
+
+http:
+  - raw:
+      - |
+        GET / HTTP/1.1
+        Host: {{vhost}}
+    
+    matchers:
+      - type: status
+        negative: true
+        status:
+          - 400
+          - 502
+```
+
+### Multi-protocol value sharing
+
+```yaml
+id: dns-http-dynamic-values
+
+info:
+  name: Multi-Protocol Dynamic Values
+  author: pdteam
+  severity: info
+
+flow: dns() && http()
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    extractors:
+      - type: dsl
+        name: blogid
+        internal: true
+        dsl:
+          - "trim_suffix(cname, '.vercel-dns.com')"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: dsl
+        condition: and
+        dsl:
+          - "contains(body, 'home')"
+          - "blogid == 'cname'"
+```
+
+## Flow vs workflows
+
+<Tabs>
+  <Tab title="Flow">
+    **Advantages:**
+    - Single template file
+    - Full JavaScript control
+    - Iterate over extracted values
+    - Custom conditional logic
+    - Access to all JavaScript features
+    
+    **Best for:**
+    - Complex multi-step templates
+    - Dynamic iteration
+    - Custom orchestration logic
+    - Templates with data processing
+  </Tab>
+  
+  <Tab title="Workflows">
+    **Advantages:**
+    - Reuse existing templates
+    - Technology-based organization
+    - Community template ecosystem
+    - Simpler syntax
+    
+    **Best for:**
+    - Combining multiple templates
+    - Technology-specific checks
+    - Progressive scanning
+    - Template library organization
+  </Tab>
+</Tabs>
+
+## JavaScript features
+
+Flow supports ECMAScript 5.1, including:
+
+- Variables: `let`, `var`, `const`
+- Control flow: `if`, `else`, `for`, `while`, `switch`
+- Functions: `function() {}`, anonymous functions
+- Arrays: `[]`, `.push()`, `.pop()`, `.length`
+- Objects: `{}`, property access
+- Operators: `&&`, `||`, `!`, `==`, `===`, `>`, `<`
+- String manipulation: `.replace()`, `.substring()`, `.indexOf()`
+
+<Warning>
+  ECMAScript 5.1 does NOT support:
+  - Arrow functions (`=>`) 
+  - Template literals (`` `string ${var}` ``)
+  - Destructuring
+  - `async/await`
+  - ES6+ features
+  
+  Use traditional JavaScript syntax instead.
+</Warning>
+
+## Using DSL functions in flow
+
+You can use Nuclei DSL helper functions in flow:
+
+```yaml
+flow: |
+  dns();
+  
+  // Use DSL functions via JavaScript
+  let domain = template["cname"];
+  let cleaned = dsl("to_lower(trim_suffix('" + domain + "', '.'))");
+  
+  set("clean_domain", cleaned);
+  http();
+```
+
+## Debugging flows
+
+Use the `log()` function for debugging:
+
+```yaml
+flow: |
+  log("Starting flow execution");
+  
+  http(1);
+  log("HTTP request 1 completed");
+  
+  let emails = template["emails"];
+  log("Found " + emails.length + " emails");
+  
+  for (let email of emails) {
+    log("Testing email: " + email);
+    set("email", email);
+    http(2);
+  }
+```
+
+## Real-world examples
+
+<CodeGroup>
+```yaml JWT Refresh Flow
+id: jwt-refresh-flow
+
+info:
+  name: JWT Token Refresh Flow
+  author: pdteam
+  severity: info
+
+flow: |
+  // Get initial JWT
+  http("login");
+  
+  // Use JWT for requests
+  for (let i = 0; i < 5; i++) {
+    if (!http("protected")) {
+      // If request fails, refresh token
+      http("refresh");
+      http("protected");
+    }
+  }
+
+http:
+  - id: login
+    method: POST
+    path:
+      - "{{BaseURL}}/api/login"
+    body: '{"username":"test","password":"test"}'
+    extractors:
+      - type: json
+        name: jwt_token
+        internal: true
+        json:
+          - ".token"
+  
+  - id: protected
+    method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      Authorization: "Bearer {{jwt_token}}"
+  
+  - id: refresh
+    method: POST
+    path:
+      - "{{BaseURL}}/api/refresh"
+    headers:
+      Authorization: "Bearer {{jwt_token}}"
+    extractors:
+      - type: json
+        name: jwt_token
+        internal: true
+        json:
+          - ".token"
+```
+
+```yaml Progressive Exploitation
+id: progressive-exploit
+
+info:
+  name: Progressive Exploitation Flow
+  author: pdteam
+  severity: critical
+
+flow: |
+  // Step 1: Recon
+  if (http("recon")) {
+    log("Target is vulnerable, proceeding...");
+    
+    // Step 2: Get valid session
+    if (http("get-session")) {
+      
+      // Step 3: Exploit
+      if (http("exploit")) {
+        log("Exploitation successful!");
+        
+        // Step 4: Post-exploitation
+        http("post-exploit");
+      }
+    }
+  }
+
+http:
+  - id: recon
+    method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    matchers:
+      - type: status
+        status:
+          - 200
+        internal: true
+  
+  - id: get-session
+    method: POST
+    path:
+      - "{{BaseURL}}/login"
+    body: "username=admin&password=admin"
+    extractors:
+      - type: kval
+        name: session
+        internal: true
+        kval:
+          - sessionid
+  
+  - id: exploit
+    method: GET
+    path:
+      - "{{BaseURL}}/admin/execute?cmd=whoami"
+    headers:
+      Cookie: "sessionid={{session}}"
+    matchers:
+      - type: word
+        words:
+          - "root"
+          - "administrator"
+  
+  - id: post-exploit
+    method: GET
+    path:
+      - "{{BaseURL}}/admin/execute?cmd=id"
+    headers:
+      Cookie: "sessionid={{session}}"
+```
+</CodeGroup>
+
+## Best practices
+
+1. **Use internal matchers** - Hide intermediate checks with `internal: true`
+2. **Extract only needed data** - Use `internal: true` on extractors used in flow
+3. **Validate extracted values** - Check if values exist before using them
+4. **Log for debugging** - Use `log()` during development
+5. **Handle errors gracefully** - Use conditional checks before executing requests
+6. **Keep flow logic simple** - Complex logic can be hard to debug
+7. **Document flow logic** - Add comments explaining the orchestration
+8. **Test thoroughly** - Verify all execution paths work as expected
+
+## Common patterns
+
+### Conditional chaining
+
+```javascript
+if (http(1) && http(2)) {
+  http(3);
+}
+```
+
+### Loop with condition
+
+```javascript
+for (let item of template["items"]) {
+  set("item", item);
+  if (http()) {
+    break;  // Stop on first match
+  }
+}
+```
+
+### Retry logic
+
+```javascript
+let success = false;
+let retries = 3;
+
+while (!success && retries > 0) {
+  success = http();
+  retries--;
+}
+```
+
+### Multiple protocol orchestration
+
+```javascript
+ssl();
+dns();
+
+if (template["ssl_subject_cn"] || template["ptr_record"]) {
+  http();
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Workflows" icon="diagram-project" href="/templates/workflows">
+    Multi-template workflows
+  </Card>
+  <Card title="Variables" icon="dollar-sign" href="/templates/variables">
+    Template context
+  </Card>
+  <Card title="Extractors" icon="filter" href="/templates/extractors">
+    Extract dynamic values
+  </Card>
+  <Card title="Helper Functions" icon="function" href="/templates/helper-functions">
+    DSL functions
+  </Card>
+</CardGroup>

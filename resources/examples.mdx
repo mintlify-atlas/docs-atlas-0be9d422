@@ -1,0 +1,283 @@
+---
+title: Examples
+description: Real-world examples and use cases for Nuclei vulnerability scanning
+---
+
+This page provides real-world examples of using Nuclei for various security scanning scenarios.
+
+## Quick start examples
+
+### Single target scan
+
+Perform a quick scan on a web application:
+
+```bash
+nuclei -target https://example.com
+```
+
+### Multiple targets
+
+Scan a list of URLs from a file:
+
+```bash
+nuclei -list urls.txt
+```
+
+### Network scanning
+
+Scan an entire subnet for network-related issues:
+
+```bash
+nuclei -target 192.168.1.0/24
+```
+
+## Common use cases
+
+<CardGroup cols={2}>
+  <Card title="CVE detection" icon="bug">
+    Identify known vulnerabilities in your infrastructure
+  </Card>
+  <Card title="Configuration audits" icon="gear">
+    Find security misconfigurations and weak settings
+  </Card>
+  <Card title="Sensitive data exposure" icon="eye">
+    Detect exposed files, credentials, and APIs
+  </Card>
+  <Card title="CI/CD integration" icon="code-branch">
+    Automated security testing in pipelines
+  </Card>
+</CardGroup>
+
+## Detecting known CVEs
+
+### Log4Shell (CVE-2021-44228)
+
+```bash
+# Scan for Log4Shell vulnerability
+nuclei -u https://example.com -t cves/2021/CVE-2021-44228.yaml
+```
+
+[View template](https://cloud.projectdiscovery.io/public/CVE-2021-45046)
+
+### SQL injection detection
+
+```bash
+# Detect SQL injection vulnerabilities
+nuclei -u https://example.com -t cves/2022/CVE-2022-34265.yaml
+```
+
+[View template](https://cloud.projectdiscovery.io/public/CVE-2022-34265)
+
+### XSS detection
+
+```bash
+# Scan for reflected XSS
+nuclei -u https://example.com -t cves/2023/CVE-2023-4173.yaml
+```
+
+[View template](https://cloud.projectdiscovery.io/public/CVE-2023-4173)
+
+## Security configuration testing
+
+### Default credentials
+
+```bash
+# Check for default or weak passwords
+nuclei -u https://example.com -tags default-login
+```
+
+Example template: [Airflow default login](https://cloud.projectdiscovery.io/public/airflow-default-login)
+
+### Exposed sensitive files
+
+```bash
+# Scan for exposed configuration files
+nuclei -u https://example.com -t exposures/
+```
+
+Example template: [Airflow configuration exposure](https://cloud.projectdiscovery.io/public/airflow-configuration-exposure)
+
+### SSL/TLS configuration
+
+```bash
+# Check SSL certificate validity
+nuclei -u https://example.com -t ssl/
+```
+
+Example template: [SSL certificate expiry](https://cloud.projectdiscovery.io/public/expired-ssl)
+
+## Advanced scanning scenarios
+
+<Accordion title="Open redirect detection">
+```bash
+# Identify open redirect vulnerabilities
+nuclei -u https://example.com -t vulnerabilities/open-redirect.yaml
+```
+
+[View template](https://cloud.projectdiscovery.io/public/open-redirect)
+</Accordion>
+
+<Accordion title="Subdomain takeover">
+```bash
+# Detect potential subdomain takeovers
+nuclei -u https://example.com -t takeovers/
+```
+
+Example template: [Azure takeover detection](https://cloud.projectdiscovery.io/public/azure-takeover-detection)
+</Accordion>
+
+<Accordion title="Cloud service misconfigurations">
+```bash
+# Scan for open S3 buckets
+nuclei -u https://s3.amazonaws.com -t cloud/aws/
+```
+
+Example template: [Open S3 bucket detection](https://cloud.projectdiscovery.io/public/s3-public-read-acp)
+</Accordion>
+
+<Accordion title="Remote code execution">
+```bash
+# Detect RCE vulnerabilities
+nuclei -u https://example.com -tags rce -s critical,high
+```
+
+Example template: [RCE detection](https://cloud.projectdiscovery.io/public/CVE-2024-29824)
+</Accordion>
+
+<Accordion title="Path traversal">
+```bash
+# Scan for directory traversal vulnerabilities
+nuclei -u https://example.com -t vulnerabilities/lfi/
+```
+
+Example template: [Oracle FatWire LFI](https://cloud.projectdiscovery.io/public/oracle-fatwire-lfi)
+</Accordion>
+
+<Accordion title="File inclusion vulnerabilities">
+```bash
+# Detect local/remote file inclusion
+nuclei -u https://example.com -t cves/2023/CVE-2023-6977.yaml
+```
+
+[View template](https://cloud.projectdiscovery.io/public/CVE-2023-6977)
+</Accordion>
+
+## Custom template scanning
+
+### Using your own template
+
+```bash
+# Run a custom template
+nuclei -u https://example.com -t /path/to/your-template.yaml
+```
+
+### Multiple template directories
+
+```bash
+# Run templates from multiple directories
+nuclei -u https://example.com -t http/cves/ -t ssl/ -t custom-templates/
+```
+
+## Output and reporting
+
+<Steps>
+  <Step title="JSON output">
+    Export results in JSON format for further processing:
+    ```bash
+    nuclei -u https://example.com -json-export output.json
+    ```
+  </Step>
+
+  <Step title="Markdown reports">
+    Generate markdown reports sorted by template:
+    ```bash
+    MARKDOWN_EXPORT_SORT_MODE=template nuclei -u https://example.com -markdown-export nuclei_report/
+    ```
+  </Step>
+
+  <Step title="SARIF output">
+    Export in SARIF format for CI/CD integration:
+    ```bash
+    nuclei -u https://example.com -sarif-export results.sarif
+    ```
+  </Step>
+</Steps>
+
+## Integration examples
+
+### CI/CD pipeline integration
+
+```yaml
+# GitHub Actions example
+name: Nuclei Scan
+on: [push, pull_request]
+
+jobs:
+  nuclei-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Run Nuclei
+        run: |
+          go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+          nuclei -u ${{ secrets.TARGET_URL }} -json-export results.json
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v3
+        with:
+          name: nuclei-results
+          path: results.json
+```
+
+### ProjectDiscovery Cloud dashboard
+
+```bash
+# Upload results to ProjectDiscovery Cloud
+nuclei -u https://example.com -dashboard
+```
+
+<Note>
+This feature is free and requires authentication. See the [documentation](https://docs.projectdiscovery.io/cloud/scanning/nuclei-scan) for setup instructions.
+</Note>
+
+## Performance optimization
+
+### Parallel scanning
+
+```bash
+# Increase concurrency for faster scans
+nuclei -u https://example.com -c 50 -rl 200
+```
+
+### Template clustering
+
+```bash
+# Disable clustering if needed (enabled by default)
+nuclei -u https://example.com -dc
+```
+
+### Rate limiting
+
+```bash
+# Limit requests per second
+nuclei -u https://example.com -rate-limit 100
+```
+
+## Additional resources
+
+<CardGroup cols={2}>
+  <Card title="Template library" icon="book" href="/resources/template-library">
+    Browse the complete template library
+  </Card>
+  <Card title="Use cases" icon="lightbulb" href="/resources/use-cases">
+    Explore more use cases and scenarios
+  </Card>
+  <Card title="Video tutorials" icon="video" href="https://www.youtube.com/playlist?list=PLZRbR9aMzTTpItEdeNSulo8bYsvil80Rl">
+    Watch the foundational YouTube series
+  </Card>
+  <Card title="Cloud platform" icon="cloud" href="https://cloud.projectdiscovery.io">
+    Try the free cloud platform
+  </Card>
+</CardGroup>

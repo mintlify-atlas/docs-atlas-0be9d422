@@ -1,0 +1,217 @@
+---
+title: Configuration file
+description: Learn how to use Nuclei's configuration file to customize default settings and template locations
+---
+
+Nuclei supports a configuration file that allows you to customize default settings, template locations, and other preferences. This file provides a persistent way to configure Nuclei without passing command-line flags every time.
+
+## Configuration file location
+
+Nuclei's configuration file is located at:
+
+```bash
+~/.config/nuclei/config.yaml
+```
+
+The file is automatically created when you first run Nuclei with the `-update-templates` flag or when you modify any configuration settings.
+
+## Configuration file format
+
+The configuration file uses YAML format. Here's a complete example with all available options:
+
+```yaml
+# Nuclei Templates Directory
+nuclei-templates-directory: /path/to/nuclei-templates
+
+# Custom Template Directories
+custom-s3-templates-directory: /path/to/s3-templates
+custom-github-templates-directory: /path/to/github-templates
+custom-gitlab-templates-directory: /path/to/gitlab-templates
+custom-azure-templates-directory: /path/to/azure-templates
+
+# Template Version Information
+nuclei-templates-version: v9.7.0
+nuclei-ignore-hash: abc123def456
+
+# Latest Version Cache (automatically managed)
+nuclei-latest-version: v3.1.0
+nuclei-templates-latest-version: v9.7.0
+nuclei-latest-ignore-hash: xyz789
+```
+
+## Configuration options
+
+### Template directories
+
+<ParamField path="nuclei-templates-directory" type="string">
+  Path to the main Nuclei templates directory. Defaults to `~/.config/nuclei-templates/`.
+</ParamField>
+
+<ParamField path="custom-s3-templates-directory" type="string">
+  Path to custom templates stored in AWS S3.
+</ParamField>
+
+<ParamField path="custom-github-templates-directory" type="string">
+  Path to custom templates from GitHub repositories.
+</ParamField>
+
+<ParamField path="custom-gitlab-templates-directory" type="string">
+  Path to custom templates from GitLab repositories.
+</ParamField>
+
+<ParamField path="custom-azure-templates-directory" type="string">
+  Path to custom templates stored in Azure Blob Storage.
+</ParamField>
+
+### Version tracking
+
+<ParamField path="nuclei-templates-version" type="string">
+  Currently installed version of Nuclei templates. Automatically updated when templates are installed or updated.
+</ParamField>
+
+<ParamField path="nuclei-ignore-hash" type="string">
+  Hash of the `.nuclei-ignore` file. Used to detect when the ignore file has been updated.
+</ParamField>
+
+<ParamField path="nuclei-latest-version" type="string">
+  Latest available version of Nuclei (cached from version check).
+</ParamField>
+
+<ParamField path="nuclei-templates-latest-version" type="string">
+  Latest available version of Nuclei templates (cached from version check).
+</ParamField>
+
+## Creating a custom configuration
+
+<Steps>
+  <Step title="Create the config directory">
+    ```bash
+    mkdir -p ~/.config/nuclei
+    ```
+  </Step>
+
+  <Step title="Create the configuration file">
+    ```bash
+    cat > ~/.config/nuclei/config.yaml <<EOF
+    nuclei-templates-directory: /custom/path/to/templates
+    EOF
+    ```
+  </Step>
+
+  <Step title="Verify the configuration">
+    Run Nuclei and check that it uses your custom configuration:
+    ```bash
+    nuclei -version
+    ```
+  </Step>
+</Steps>
+
+## Using custom template directories
+
+You can configure multiple custom template directories for different sources:
+
+```yaml
+# Main templates
+nuclei-templates-directory: ~/.config/nuclei-templates
+
+# Organization-specific templates
+custom-github-templates-directory: ~/.config/nuclei-templates/custom-github
+
+# Private templates from S3
+custom-s3-templates-directory: ~/.config/nuclei-templates/custom-s3
+```
+
+When scanning, Nuclei will search all configured directories for templates.
+
+<Note>
+  Custom template directories are relative to the main templates directory unless you specify an absolute path.
+</Note>
+
+## Disabling automatic updates
+
+Use the `-duc` (disable-update-check) flag to prevent Nuclei from checking for updates:
+
+```bash
+nuclei -target example.com -duc
+```
+
+This is useful in air-gapped environments or when you want to control update timing manually.
+
+## Configuration file precedence
+
+Configuration values are applied in this order (later values override earlier ones):
+
+1. Default values from `pkg/catalog/config/nucleiconfig.go`
+2. Configuration file (`~/.config/nuclei/config.yaml`)
+3. Environment variables
+4. Command-line flags
+
+<Tip>
+  Command-line flags always take precedence over configuration file settings.
+</Tip>
+
+## Template ignore file
+
+Nuclei also uses a `.nuclei-ignore` file in the templates directory to exclude specific templates from execution:
+
+```bash
+# Location
+~/.config/nuclei-templates/.nuclei-ignore
+
+# Format: one template path per line
+templates/misconfiguration/example-check.yaml
+templates/cves/old-cve.yaml
+```
+
+## Resetting configuration
+
+To reset Nuclei configuration and templates to defaults:
+
+```bash
+nuclei -reset
+```
+
+<Warning>
+  This command removes all Nuclei configuration files and templates. You'll need to re-download templates after running this command.
+</Warning>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Configuration file not found">
+    Nuclei creates the configuration file automatically. If it's missing:
+    
+    1. Run `nuclei -update-templates` to initialize configuration
+    2. Manually create `~/.config/nuclei/config.yaml`
+    3. Check file permissions on the `.config` directory
+  </Accordion>
+
+  <Accordion title="Templates not loading from custom directory">
+    Ensure:
+    
+    1. The directory path is absolute or correctly relative
+    2. The directory contains valid `.yaml` template files
+    3. File permissions allow Nuclei to read the directory
+    4. Use `-v` flag to see which templates are being loaded
+  </Accordion>
+
+  <Accordion title="Configuration changes not taking effect">
+    Remember:
+    
+    1. Command-line flags override configuration file settings
+    2. Environment variables override configuration file settings
+    3. Restart any long-running Nuclei processes after config changes
+    4. Check for YAML syntax errors in the config file
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Environment variables" icon="gear" href="/configuration/environment-variables">
+    Configure Nuclei using environment variables
+  </Card>
+  <Card title="Template selection" icon="filter" href="/usage/template-selection">
+    Learn how to select and filter templates
+  </Card>
+</CardGroup>

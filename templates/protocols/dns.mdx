@@ -1,0 +1,680 @@
+---
+title: DNS protocol templates
+description: Create DNS-based Nuclei templates for domain enumeration and DNS security testing
+---
+
+DNS protocol templates allow you to perform DNS queries and test DNS infrastructure for misconfigurations, subdomain takeovers, and information disclosure.
+
+## Basic DNS query
+
+A simple DNS template performs a query for a specific record type:
+
+```yaml
+id: dns-a-record
+
+info:
+  name: DNS A Record Query
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+    class: inet
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tA"
+```
+
+## DNS request components
+
+### Name
+
+<ParamField path="name" type="string" required>
+  The hostname/domain to query. Usually set to `{{FQDN}}` variable.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+  ```
+</ParamField>
+
+### Record types
+
+<ParamField path="type" type="string" required>
+  DNS record type to query.
+  
+  **Supported types**:
+  - `A` - IPv4 address
+  - `AAAA` - IPv6 address  
+  - `CNAME` - Canonical name
+  - `MX` - Mail exchange
+  - `NS` - Nameserver
+  - `TXT` - Text record
+  - `SOA` - Start of authority
+  - `PTR` - Pointer record
+  - `SRV` - Service record
+  - `CAA` - Certificate authority authorization
+  - `TLSA` - TLS authentication
+  - `DS` - Delegation signer
+  - `ANY` - Any record type
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: TXT
+  ```
+</ParamField>
+
+### Query class
+
+<ParamField path="class" type="string" default="inet">
+  DNS query class.
+  
+  **Options**: `inet`, `csnet`, `chaos`, `hesiod`, `none`, `any`
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      class: inet
+  ```
+</ParamField>
+
+## DNS query options
+
+### Recursion
+
+<ParamField path="recursion" type="boolean" default={true}>
+  Enable recursive DNS resolution.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      recursion: true
+  ```
+</ParamField>
+
+### Retries
+
+<ParamField path="retries" type="integer" default={2}>
+  Number of retry attempts for failed queries.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      retries: 3
+  ```
+</ParamField>
+
+### Custom resolvers
+
+<ParamField path="resolvers" type="array">
+  Specify custom DNS resolvers to use.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      resolvers:
+        - 8.8.8.8
+        - 1.1.1.1
+  ```
+</ParamField>
+
+## DNS record examples
+
+<Tabs>
+  <Tab title="A Record">
+    Query for IPv4 addresses:
+    
+    ```yaml
+    id: dns-a-record
+    
+    info:
+      name: DNS A Record Check
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: A
+        class: inet
+        
+        matchers:
+          - type: regex
+            regex:
+              - "IN\tA\t([0-9.]+)"
+        
+        extractors:
+          - type: regex
+            name: ip_address
+            regex:
+              - "IN\tA\t([0-9.]+)"
+            group: 1
+    ```
+  </Tab>
+  
+  <Tab title="TXT Record">
+    Query for text records (often used for verification):
+    
+    ```yaml
+    id: dns-txt-record
+    
+    info:
+      name: DNS TXT Record Check
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: TXT
+        
+        matchers:
+          - type: word
+            words:
+              - "v=spf1"
+              - "google-site-verification"
+            condition: or
+    ```
+  </Tab>
+  
+  <Tab title="MX Record">
+    Query for mail server records:
+    
+    ```yaml
+    id: dns-mx-record
+    
+    info:
+      name: DNS MX Record Check
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: MX
+        
+        extractors:
+          - type: regex
+            name: mail_servers
+            regex:
+              - "IN\tMX\t[0-9]+\s+(.+)"
+            group: 1
+    ```
+  </Tab>
+  
+  <Tab title="NS Record">
+    Query for nameserver records:
+    
+    ```yaml
+    id: dns-ns-record
+    
+    info:
+      name: DNS NS Record Check
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: NS
+        
+        extractors:
+          - type: regex
+            name: nameservers
+            regex:
+              - "IN\tNS\t(.+)"
+            group: 1
+    ```
+  </Tab>
+</Tabs>
+
+## Subdomain takeover detection
+
+Detect dangling DNS records that could lead to subdomain takeovers:
+
+```yaml
+id: subdomain-takeover-aws
+
+info:
+  name: AWS Subdomain Takeover Detection
+  author: pdteam
+  severity: high
+  description: Detects CNAME records pointing to unclaimed AWS resources
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "CNAME"
+      
+      - type: regex
+        regex:
+          - "\.amazonaws\.com"
+          - "\.s3\.amazonaws\.com"
+          - ".cloudfront.net"
+        condition: or
+    
+    extractors:
+      - type: regex
+        name: cname_target
+        regex:
+          - "CNAME\t(.+)"
+        group: 1
+```
+
+## DNS zone transfer detection
+
+Attempt AXFR zone transfers:
+
+```yaml
+id: dns-zone-transfer
+
+info:
+  name: DNS Zone Transfer (AXFR)
+  author: pdteam
+  severity: high
+  description: Detects misconfigured DNS servers allowing zone transfers
+  reference:
+    - https://owasp.org/www-community/vulnerabilities/Zone_Transfer
+
+dns:
+  - name: "{{FQDN}}"
+    type: AXFR
+    class: inet
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tNS"
+          - "IN\tA"
+          - "IN\tMX"
+        condition: and
+```
+
+<Warning>
+  Zone transfers should only be performed against systems you have permission to test.
+</Warning>
+
+## DNS tracing
+
+<ParamField path="trace" type="boolean" default={false}>
+  Perform DNS trace to follow resolution path.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      trace: true
+      trace-max-recursion: 10
+  ```
+</ParamField>
+
+<ParamField path="trace-max-recursion" type="integer" default={5}>
+  Maximum recursion depth for DNS tracing.
+  
+  ```yaml
+  dns:
+    - name: "{{FQDN}}"
+      type: A
+      trace: true
+      trace-max-recursion: 15
+  ```
+</ParamField>
+
+## Multi-step DNS queries
+
+Chain DNS queries together:
+
+```yaml
+id: dns-ns-probe
+
+info:
+  name: DNS Nameserver Probing
+  author: pdteam
+  severity: info
+  description: Queries NS records then probes each nameserver
+
+flow: |
+  dns("fetch-ns");
+  for(let ns of template["nameservers"]) {
+    set("nameserver", ns);
+    dns("probe-ns");
+  };
+
+dns:
+  - id: "fetch-ns"
+    name: "{{FQDN}}"
+    type: NS
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tNS"
+        internal: true
+    
+    extractors:
+      - type: regex
+        internal: true
+        name: nameservers
+        group: 1
+        regex:
+          - "IN\tNS\t(.+)"
+  
+  - id: "probe-ns"
+    name: "{{nameserver}}"
+    type: A
+    class: inet
+    retries: 3
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - "nameserver"
+```
+
+## DNS with payloads
+
+Test multiple subdomains:
+
+```yaml
+id: subdomain-bruteforce
+
+info:
+  name: Subdomain Bruteforce
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{subdomain}}.{{FQDN}}"
+    type: A
+    
+    payloads:
+      subdomain:
+        - www
+        - mail
+        - ftp
+        - admin
+        - api
+        - dev
+        - staging
+    
+    threads: 10
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tA"
+    
+    extractors:
+      - type: regex
+        regex:
+          - "IN\tA\t([0-9.]+)"
+        group: 1
+```
+
+## DNS response parts
+
+Specify which part of the DNS response to match:
+
+<ResponseField name="raw" type="string">
+  Complete DNS response (default)
+</ResponseField>
+
+<ResponseField name="question" type="string">
+  Question section of DNS response
+</ResponseField>
+
+<ResponseField name="answer" type="string">
+  Answer section containing resource records
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: answer
+      words:
+        - "amazonaws.com"
+  ```
+</ResponseField>
+
+<ResponseField name="ns" type="string">
+  Authority (nameserver) section
+</ResponseField>
+
+<ResponseField name="extra" type="string">
+  Additional records section
+</ResponseField>
+
+<ResponseField name="rcode" type="string">
+  Response code (NOERROR, NXDOMAIN, etc.)
+</ResponseField>
+
+## DNS matchers and extractors
+
+### Common matchers
+
+```yaml
+matchers:
+  # Check for specific record type
+  - type: word
+    words:
+      - "IN\tA"
+  
+  # Check response code
+  - type: word
+    words:
+      - "NOERROR"
+      - "NXDOMAIN"
+    condition: or
+  
+  # Match IP addresses
+  - type: regex
+    regex:
+      - "IN\tA\t(10\.|192\.168\.|172\.)"
+  
+  # Check for specific domains
+  - type: word
+    words:
+      - "cloudflare"
+      - "amazonaws"
+    condition: or
+```
+
+### Common extractors
+
+```yaml
+extractors:
+  # Extract IP addresses
+  - type: regex
+    name: ip_addresses
+    regex:
+      - "IN\tA\t([0-9.]+)"
+    group: 1
+  
+  # Extract CNAME targets
+  - type: regex
+    name: cname_target
+    regex:
+      - "CNAME\t(.+?)\."
+    group: 1
+  
+  # Extract nameservers
+  - type: regex
+    name: nameservers
+    regex:
+      - "IN\tNS\t(.+)"
+    group: 1
+  
+  # Extract MX records with priority
+  - type: regex
+    name: mail_servers
+    regex:
+      - "IN\tMX\t([0-9]+\s+.+)"
+    group: 1
+```
+
+## Complete examples
+
+<CodeGroup>
+```yaml CNAME Detection
+id: dns-cname-detection
+
+info:
+  name: DNS CNAME Record Detection
+  author: pdteam
+  severity: info
+  description: Detects and extracts CNAME records
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    class: inet
+    retries: 2
+    recursion: true
+    
+    matchers:
+      - type: word
+        words:
+          - "IN\tCNAME"
+    
+    extractors:
+      - type: regex
+        name: cname_value
+        regex:
+          - "IN\tCNAME\t(.+)"
+        group: 1
+```
+
+```yaml AWS Enumeration
+id: dns-aws-services
+
+info:
+  name: AWS Service Detection via DNS
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "CNAME"
+      
+      - type: regex
+        regex:
+          - "s3\.amazonaws\.com"
+          - "cloudfront\.net"
+          - "elasticbeanstalk\.com"
+          - "elb\.amazonaws\.com"
+        condition: or
+    
+    extractors:
+      - type: regex
+        name: aws_service
+        regex:
+          - "CNAME\t(.*?\.amazonaws\.com)"
+          - "CNAME\t(.*?\.cloudfront\.net)"
+        group: 1
+```
+
+```yaml SPF Record Check
+id: dns-spf-check
+
+info:
+  name: SPF Record Validation
+  author: pdteam
+  severity: info
+  description: Checks for SPF record presence and configuration
+
+dns:
+  - name: "{{FQDN}}"
+    type: TXT
+    
+    matchers:
+      - type: regex
+        regex:
+          - "v=spf1\\s+.*\\s+(~all|-all|\\?all)"
+    
+    extractors:
+      - type: regex
+        name: spf_policy
+        regex:
+          - "v=spf1(.+)"
+        group: 1
+```
+</CodeGroup>
+
+## Testing tips
+
+<AccordionGroup>
+  <Accordion title="Debug DNS queries">
+    Use `-debug` to see full DNS responses:
+    
+    ```bash
+    nuclei -t dns-template.yaml -u example.com -debug
+    ```
+  </Accordion>
+  
+  <Accordion title="Test with specific resolvers">
+    Override default resolvers:
+    
+    ```bash
+    nuclei -t dns-template.yaml -u example.com -r 8.8.8.8,1.1.1.1
+    ```
+  </Accordion>
+  
+  <Accordion title="Use FQDN variable">
+    Always use `{{FQDN}}` for domain inputs:
+    
+    ```yaml
+    dns:
+      - name: "{{FQDN}}"  # Correct
+      # NOT: name: "{{Hostname}}"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common use cases
+
+<CardGroup cols={2}>
+  <Card title="Subdomain takeover" icon="triangle-exclamation">
+    Detect dangling CNAMEs pointing to cloud services
+  </Card>
+  <Card title="DNS enumeration" icon="magnifying-glass">
+    Discover subdomains and infrastructure
+  </Card>
+  <Card title="Zone transfer" icon="exchange">
+    Test for misconfigured AXFR
+  </Card>
+  <Card title="Record validation" icon="check">
+    Verify SPF, DMARC, DKIM records
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Network protocol" icon="server" href="/templates/protocols/network">
+    TCP-based protocol testing
+  </Card>
+  <Card title="Flow control" icon="code-branch" href="/templates/flow-control">
+    Advanced multi-step logic
+  </Card>
+  <Card title="Helper functions" icon="function" href="/templates/helper-functions">
+    DSL functions for DNS
+  </Card>
+  <Card title="Extractors" icon="scissors" href="/templates/extractors">
+    Data extraction guide
+  </Card>
+</CardGroup>

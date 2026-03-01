@@ -1,0 +1,564 @@
+---
+title: Target specification
+description: Learn how to specify targets for Nuclei scans including URLs, IP addresses, CIDRs, and domain names
+---
+
+## Target input methods
+
+Nuclei provides multiple ways to specify scan targets, from single URLs to complex network ranges.
+
+## Single target
+
+Specify a single target using the `-target` or `-u` flag:
+
+<CodeGroup>
+```bash HTTPS URL
+nuclei -target https://example.com
+```
+
+```bash HTTP URL
+nuclei -target http://example.com
+```
+
+```bash Domain name
+nuclei -target example.com
+```
+
+```bash IP address
+nuclei -target 192.168.1.10
+```
+
+```bash IP with port
+nuclei -target 192.168.1.10:8080
+```
+
+```bash Short flag
+nuclei -u https://example.com
+```
+</CodeGroup>
+
+<Note>
+  When no protocol is specified, Nuclei will probe the target to determine if it's HTTP or HTTPS.
+</Note>
+
+## Multiple targets from file
+
+Provide multiple targets in a text file, one per line:
+
+```txt targets.txt
+https://example.com
+https://test.example.com
+http://app.example.com:8080
+192.168.1.10
+10.0.0.0/24
+```
+
+Scan all targets from the file:
+
+```bash
+nuclei -list targets.txt
+```
+
+Or use the short flag:
+
+```bash
+nuclei -l targets.txt
+```
+
+## Network ranges (CIDR notation)
+
+Scan entire network subnets using CIDR notation:
+
+<CodeGroup>
+```bash Class C subnet
+nuclei -target 192.168.1.0/24
+```
+
+```bash Class B subnet
+nuclei -target 172.16.0.0/16
+```
+
+```bash Single IP (CIDR)
+nuclei -target 10.0.0.1/32
+```
+
+```bash Custom range
+nuclei -target 192.168.0.0/20
+```
+</CodeGroup>
+
+<Info>
+  CIDR scanning is particularly useful for network vulnerability assessments and internal infrastructure scanning.
+</Info>
+
+## IP version selection
+
+Control which IP version to use when scanning domains:
+
+```bash
+# IPv4 only (default)
+nuclei -target example.com -ip-version 4
+
+# IPv6 only
+nuclei -target example.com -ip-version 6
+
+# Both IPv4 and IPv6
+nuclei -target example.com -ip-version 4,6
+```
+
+Short flag:
+```bash
+nuclei -target example.com -iv 4,6
+```
+
+<Tip>
+  Use `-ip-version 6` to specifically test IPv6 infrastructure vulnerabilities.
+</Tip>
+
+## Scan all IP addresses
+
+Scan all IPs associated with a DNS record:
+
+```bash
+nuclei -target example.com -scan-all-ips
+```
+
+Short flag:
+```bash
+nuclei -target example.com -sa
+```
+
+This is useful when:
+- A domain has multiple A records
+- Testing load balancer configurations
+- Scanning CDN-backed applications
+- Verifying consistency across multiple servers
+
+## Standard input (stdin)
+
+Pipe targets directly into Nuclei:
+
+<CodeGroup>
+```bash From echo
+echo "https://example.com" | nuclei
+```
+
+```bash From cat
+cat targets.txt | nuclei
+```
+
+```bash From command output
+subfinder -d example.com -silent | nuclei
+```
+
+```bash Multiple tools chained
+subfinder -d example.com | httpx -silent | nuclei -t cves/
+```
+</CodeGroup>
+
+<Tip>
+  Stdin mode enables powerful integration with other security tools in your pipeline.
+</Tip>
+
+### Disable stdin
+
+Prevent reading from stdin when needed:
+
+```bash
+nuclei -target example.com -no-stdin
+```
+
+## Target exclusion
+
+Exclude specific targets from your scan:
+
+<Tabs>
+  <Tab title="Single host">
+    ```bash
+    nuclei -list targets.txt -exclude-hosts 192.168.1.1
+    ```
+    
+    Short flag:
+    ```bash
+    nuclei -list targets.txt -eh 192.168.1.1
+    ```
+  </Tab>
+  
+  <Tab title="Multiple hosts">
+    ```bash
+    nuclei -list targets.txt -exclude-hosts 192.168.1.1,192.168.1.2,192.168.1.3
+    ```
+  </Tab>
+  
+  <Tab title="CIDR range">
+    ```bash
+    nuclei -list targets.txt -exclude-hosts 10.0.0.0/8
+    ```
+  </Tab>
+  
+  <Tab title="Hostnames">
+    ```bash
+    nuclei -list targets.txt -exclude-hosts internal.example.com,admin.example.com
+    ```
+  </Tab>
+  
+  <Tab title="From file">
+    Create an exclusion file:
+    ```txt exclude.txt
+    192.168.1.1
+    10.0.0.0/8
+    internal.example.com
+    ```
+    
+    Use it:
+    ```bash
+    nuclei -list targets.txt -exclude-hosts exclude.txt
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Excluded hosts are completely skipped from scanning. Double-check your exclusion list to avoid missing important targets.
+</Warning>
+
+## Special input formats
+
+Nuclei supports importing targets from various file formats:
+
+### Burp Suite XML
+
+Import targets from Burp Suite:
+
+```bash
+nuclei -list burp-export.xml -input-mode burp
+```
+
+Short flag:
+```bash
+nuclei -list burp-export.xml -im burp
+```
+
+### OpenAPI/Swagger specifications
+
+Extract endpoints from API specifications:
+
+<CodeGroup>
+```bash OpenAPI
+nuclei -list openapi.yaml -input-mode openapi
+```
+
+```bash Swagger
+nuclei -list swagger.json -input-mode swagger
+```
+</CodeGroup>
+
+<Info>
+  This automatically extracts all endpoints from your API specification for comprehensive API security testing.
+</Info>
+
+### JSONL format
+
+Use structured JSONL input:
+
+```bash
+nuclei -list targets.jsonl -input-mode jsonl
+```
+
+### YAML format
+
+Provide targets in YAML format:
+
+```bash
+nuclei -list targets.yaml -input-mode yaml
+```
+
+### Format options
+
+<ParamField path="-required-only" type="boolean">
+  Use only required fields when generating requests from input formats:
+  ```bash
+  nuclei -list openapi.yaml -im openapi -required-only
+  ```
+  
+  Short flag: `-ro`
+</ParamField>
+
+<ParamField path="-skip-format-validation" type="boolean">
+  Skip format validation (like missing variables):
+  ```bash
+  nuclei -list swagger.json -im swagger -skip-format-validation
+  ```
+  
+  Short flag: `-sfv`
+</ParamField>
+
+## Default port handling
+
+Control how Nuclei handles default HTTP/HTTPS ports:
+
+```bash
+# Remove default ports from URLs (default behavior)
+nuclei -target example.com:80
+# Becomes: http://example.com
+
+# Keep default ports in URLs
+nuclei -target example.com:80 -leave-default-ports
+# Remains: http://example.com:80
+```
+
+Short flag:
+```bash
+nuclei -target example.com:443 -ldp
+```
+
+<Note>
+  Keeping default ports can be useful when testing applications that explicitly check the port in security rules.
+</Note>
+
+## HTTP probing
+
+By default, Nuclei uses httpx to probe non-URL inputs (like IP addresses or domains) to determine if they're running HTTP/HTTPS services.
+
+### Disable HTTP probing
+
+```bash
+nuclei -list ips.txt -no-httpx
+```
+
+Short flag:
+```bash
+nuclei -list ips.txt -nh
+```
+
+<Warning>
+  Disabling HTTP probing means Nuclei won't automatically discover HTTP services. Use this when you already know your targets are HTTP/HTTPS endpoints.
+</Warning>
+
+### Probe concurrency
+
+Control the number of concurrent HTTP probes:
+
+```bash
+nuclei -list targets.txt -probe-concurrency 100
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -prc 100
+```
+
+## Network interface selection
+
+Specify which network interface to use for scanning:
+
+```bash
+nuclei -target 192.168.1.0/24 -interface eth0
+```
+
+Short flag:
+```bash
+nuclei -target 192.168.1.0/24 -i eth0
+```
+
+List available interfaces:
+```bash
+ip link show
+```
+
+## Source IP address
+
+Set a custom source IP address for network requests:
+
+```bash
+nuclei -target example.com -source-ip 192.168.1.100
+```
+
+Short flag:
+```bash
+nuclei -target example.com -sip 192.168.1.100
+```
+
+<Info>
+  Useful when you have multiple network interfaces and need to scan from a specific IP.
+</Info>
+
+## Practical examples
+
+### Example 1: Internal network scan
+
+Scan internal network excluding management subnet:
+
+```bash
+nuclei -target 192.168.0.0/16 \
+  -exclude-hosts 192.168.100.0/24 \
+  -rate-limit 200 \
+  -output internal-scan.txt
+```
+
+### Example 2: Multi-target domain scan
+
+Scan all IPs for multiple domains:
+
+```bash
+cat domains.txt | nuclei -scan-all-ips -severity high,critical
+```
+
+### Example 3: API security testing
+
+Test all endpoints from OpenAPI spec:
+
+```bash
+nuclei -list api-spec.yaml \
+  -input-mode openapi \
+  -tags api,auth \
+  -json-export api-findings.json
+```
+
+### Example 4: Subdomain pipeline
+
+Discover subdomains and scan with Nuclei:
+
+```bash
+subfinder -d example.com -silent | \
+httpx -silent -ports 80,443,8080,8443 | \
+nuclei -templates cves/ -severity critical,high
+```
+
+### Example 5: IPv6 infrastructure scan
+
+Scan IPv6 addresses only:
+
+```bash
+nuclei -list ipv6-targets.txt \
+  -ip-version 6 \
+  -templates network/ \
+  -output ipv6-results.txt
+```
+
+### Example 6: Targeted exclusion scan
+
+Scan production network excluding critical infrastructure:
+
+```bash
+nuclei -target 10.0.0.0/8 \
+  -exclude-hosts production-critical.txt \
+  -rate-limit 50 \
+  -severity medium,high,critical \
+  -silent
+```
+
+## Integration with discovery tools
+
+### ProjectDiscovery toolchain
+
+Combine multiple tools for comprehensive coverage:
+
+<CodeGroup>
+```bash Subdomain discovery
+subfinder -d example.com | \
+  dnsx -silent | \
+  httpx -silent | \
+  nuclei
+```
+
+```bash Port scanning
+naabu -host example.com -silent | \
+  httpx -silent | \
+  nuclei -tags cve
+```
+
+```bash Technology detection
+echo https://example.com | \
+  httpx -silent -tech-detect | \
+  nuclei -automatic-scan
+```
+</CodeGroup>
+
+### Asset discovery platforms
+
+Integrate with Uncover for asset discovery:
+
+```bash
+nuclei -uncover \
+  -uncover-query "org:example" \
+  -uncover-engine shodan \
+  -uncover-limit 100
+```
+
+Short flags:
+```bash
+nuclei -uc -uq "port:8080" -ue shodan -ul 500
+```
+
+## Best practices
+
+<Steps>
+  <Step title="Verify target ownership">
+    Always ensure you have permission to scan your targets. Unauthorized scanning is illegal.
+  </Step>
+  
+  <Step title="Use appropriate rate limits">
+    Start with conservative rate limits, especially for production systems:
+    ```bash
+    nuclei -target example.com -rate-limit 50
+    ```
+  </Step>
+  
+  <Step title="Test exclusions first">
+    Before large scans, verify your exclusion list:
+    ```bash
+    nuclei -list targets.txt -exclude-hosts exclusions.txt -silent | head -n 10
+    ```
+  </Step>
+  
+  <Step title="Use CIDR wisely">
+    Be cautious with large CIDR ranges. Start small:
+    ```bash
+    # Start with small range
+    nuclei -target 192.168.1.0/28
+    
+    # Then expand if needed
+    nuclei -target 192.168.1.0/24
+    ```
+  </Step>
+  
+  <Step title="Leverage pipelines">
+    Chain tools to filter and prepare targets:
+    ```bash
+    cat targets.txt | httpx -silent -status-code -mc 200,301,302 | nuclei
+    ```
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Running scans"
+    icon="play"
+    href="/usage/running-scans"
+  >
+    Learn different scanning modes and strategies
+  </Card>
+  <Card
+    title="Template selection"
+    icon="filter"
+    href="/usage/template-selection"
+  >
+    Select which templates to run in your scans
+  </Card>
+  <Card
+    title="Filtering templates"
+    icon="funnel"
+    href="/usage/filtering-templates"
+  >
+    Filter by severity, tags, and more
+  </Card>
+  <Card
+    title="Rate limiting"
+    icon="gauge"
+    href="/usage/rate-limiting"
+  >
+    Control scan speed and concurrency
+  </Card>
+</CardGroup>

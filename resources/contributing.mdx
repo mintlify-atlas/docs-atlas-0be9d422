@@ -1,0 +1,324 @@
+---
+title: Contributing guide
+description: Learn how to contribute to Nuclei and the nuclei-templates library
+---
+
+We appreciate your interest in contributing to ProjectDiscovery/Nuclei! This guide provides guidelines for contributors looking to help improve the project.
+
+## Ways to contribute
+
+<CardGroup cols={2}>
+  <Card title="Submit templates" icon="file-code">
+    Create and share vulnerability detection templates
+  </Card>
+  <Card title="Report bugs" icon="bug">
+    Help us identify and fix issues
+  </Card>
+  <Card title="Improve code" icon="code">
+    Contribute to the Nuclei engine
+  </Card>
+  <Card title="Update docs" icon="book">
+    Help improve documentation
+  </Card>
+</CardGroup>
+
+## Contributing templates
+
+The nuclei-templates repository is the heart of the Nuclei project. Contributing templates helps the entire security community.
+
+### Community programs
+
+<Note>
+ProjectDiscovery runs two programs for template contributors:
+
+- **[Pioneers](https://projectdiscovery.io/pioneers)**: Recognition program for top contributors
+- **[Bounties](https://github.com/projectdiscovery/nuclei-templates/issues?q=is%3Aissue+state%3Aopen+label%3A%22%F0%9F%92%8E+Bounty%22)**: Monetary rewards for high-quality templates
+</Note>
+
+### Template submission process
+
+<Steps>
+  <Step title="Fork the repository">
+    Fork the [nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) repository to your GitHub account.
+  </Step>
+
+  <Step title="Create your template">
+    Write your template following the [template syntax](/templates/introduction). Use the [online template editor](https://cloud.projectdiscovery.io/templates) with AI assistance.
+  </Step>
+
+  <Step title="Validate the template">
+    ```bash
+    nuclei -validate -t your-template.yaml
+    ```
+  </Step>
+
+  <Step title="Test the template">
+    ```bash
+    nuclei -u https://target.com -t your-template.yaml -debug
+    ```
+  </Step>
+
+  <Step title="Submit a pull request">
+    Create a PR to the `main` branch of nuclei-templates with:
+    - Clear description of what the template detects
+    - References to CVE/advisories (if applicable)
+    - Example of vulnerable target (if safe to share)
+  </Step>
+</Steps>
+
+### Template quality guidelines
+
+<AccordionGroup>
+  <Accordion title="Accuracy">
+    - **Zero false positives**: Templates must accurately detect the vulnerability
+    - **Proper matchers**: Use multiple matchers with `and` condition when necessary
+    - **Version checking**: Include version checks where applicable
+    - **Status code validation**: Always validate HTTP status codes
+  </Accordion>
+
+  <Accordion title="Severity classification">
+    Use appropriate severity levels:
+    - **Critical**: Remote code execution, authentication bypass
+    - **High**: SQL injection, privilege escalation, sensitive data exposure
+    - **Medium**: XSS, CSRF, information disclosure
+    - **Low**: Security misconfigurations, informational issues
+    - **Info**: Technology detection, informational findings
+  </Accordion>
+
+  <Accordion title="Metadata completeness">
+    Include complete metadata:
+    ```yaml
+    info:
+      name: Clear, descriptive name
+      author: your-github-username
+      severity: appropriate-level
+      description: Detailed description of the vulnerability
+      reference:
+        - https://relevant-reference.com
+      classification:
+        cve-id: CVE-XXXX-XXXXX
+        cwe-id: CWE-XXX
+      tags: relevant,tags,here
+    ```
+  </Accordion>
+
+  <Accordion title="Performance considerations">
+    - Minimize HTTP requests where possible
+    - Use request clustering when testing multiple endpoints
+    - Avoid unnecessary payloads or brute force attempts
+    - Use `stop-at-first-match` for multi-request templates
+  </Accordion>
+</AccordionGroup>
+
+### Template best practices
+
+<Warning>
+**Do not include:**
+- Templates that cause denial of service
+- Templates with excessive requests (brute force)
+- Templates that exploit vulnerabilities for destructive purposes
+- Personally identifiable information or credentials
+</Warning>
+
+**Do include:**
+- Clear, descriptive template IDs
+- Comprehensive references
+- Example vulnerable code/configuration (when safe)
+- Remediation guidance in description
+
+## Contributing code
+
+Contributions to the Nuclei engine are welcome!
+
+### Getting started
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/projectdiscovery/nuclei.git
+    cd nuclei
+    ```
+  </Step>
+
+  <Step title="Create a feature branch">
+    ```bash
+    # Always base your work from the dev branch
+    git checkout dev
+    git checkout -b feature/your-feature-name
+    ```
+  </Step>
+
+  <Step title="Make your changes">
+    Write your code following the existing style and conventions.
+  </Step>
+
+  <Step title="Run tests">
+    ```bash
+    # Run tests
+    make test
+
+    # Run linters
+    make vet
+
+    # Build the project
+    make build
+    ```
+  </Step>
+</Steps>
+
+### Pull request guidelines
+
+When creating a PR, please follow these guidelines:
+
+<Accordion title="PR requirements">
+- **Base from dev branch**: Always work from the `dev` branch
+- **Link to issue**: Reference the related issue number
+- **Clear description**: Explain what changes you made and why
+- **Testing evidence**: Provide before/after examples if applicable
+- **Functional testing**: Include steps to test the changes
+- **Unit tests**: Add unit tests for new features
+</Accordion>
+
+**Example PR description:**
+
+```markdown
+## Description
+Adds support for custom DNS resolvers in network protocol
+
+Fixes #1234
+
+## Changes
+- Added resolver configuration to network protocol
+- Updated documentation for new flag
+- Added unit tests for resolver logic
+
+## Testing
+Before:
+```bash
+nuclei -u example.com -t network/dns-test.yaml
+# Uses system DNS
+```
+
+After:
+```bash
+nuclei -u example.com -t network/dns-test.yaml -r resolvers.txt
+# Uses custom resolvers
+```
+
+## Checklist
+- [x] Tests pass (`make test`)
+- [x] Code is linted (`make vet`)
+- [x] Documentation updated
+- [x] Unit tests added
+```
+
+### Code style
+
+Please adhere to the existing coding style for consistency:
+
+- Follow Go best practices and idioms
+- Use meaningful variable and function names
+- Add comments for complex logic
+- Keep functions focused and concise
+- Format code with `go fmt`
+
+## Development workflow
+
+### Build and test locally
+
+```bash
+# Build the project
+make build
+
+# Run tests
+make test
+
+# Run linters/vet
+make vet
+
+# Run integration tests
+make integration
+```
+
+### Validate templates
+
+```bash
+# Validate template syntax
+make template-validate
+```
+
+### Update dependencies
+
+```bash
+# Tidy go modules
+make tidy
+```
+
+## Reporting issues
+
+Found a bug or have a feature request?
+
+<Steps>
+  <Step title="Check existing issues">
+    Search [existing issues](https://github.com/projectdiscovery/nuclei/issues) to avoid duplicates.
+  </Step>
+
+  <Step title="Create detailed report">
+    Include:
+    - Clear description of the issue
+    - Steps to reproduce
+    - Expected vs actual behavior
+    - Nuclei version (`nuclei -version`)
+    - Operating system and architecture
+    - Relevant logs or error messages
+  </Step>
+
+  <Step title="Provide examples">
+    Include command-line examples, template snippets, or screenshots when helpful.
+  </Step>
+</Steps>
+
+## Documentation contributions
+
+Help improve the documentation:
+
+- Fix typos or unclear explanations
+- Add examples and use cases
+- Improve navigation and organization
+- Translate documentation
+
+Documentation PRs are submitted to the [docs repository](https://docs.projectdiscovery.io).
+
+## Community guidelines
+
+- **Be respectful**: Treat everyone with respect and professionalism
+- **Be constructive**: Provide helpful feedback and suggestions
+- **Be patient**: Maintainers are volunteers; reviews take time
+- **Be collaborative**: Work together to solve problems
+
+## Getting help
+
+<CardGroup cols={2}>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Join our Discord for questions and discussions
+  </Card>
+  <Card title="GitHub discussions" icon="github" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Start a discussion on GitHub
+  </Card>
+  <Card title="Documentation" icon="book" href="https://docs.projectdiscovery.io">
+    Browse the full documentation
+  </Card>
+  <Card title="Video tutorials" icon="video" href="https://www.youtube.com/playlist?list=PLZRbR9aMzTTpItEdeNSulo8bYsvil80Rl">
+    Watch tutorial videos
+  </Card>
+</CardGroup>
+
+## Recognition
+
+Thank you to all the amazing [community contributors](https://github.com/projectdiscovery/nuclei/graphs/contributors) who help make Nuclei better! Your contributions are valued and appreciated.
+
+Top contributors are recognized through:
+- The [Pioneers program](https://projectdiscovery.io/pioneers)
+- The [Contributors page](https://github.com/projectdiscovery/nuclei#contributors-heart) on GitHub
+- Social media shoutouts
+- Invitation to exclusive community events

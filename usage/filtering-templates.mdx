@@ -1,0 +1,605 @@
+---
+title: Filtering templates
+description: Master template filtering using tags, severity, protocol types, authors, and custom conditions
+---
+
+## Overview
+
+Nuclei provides powerful filtering capabilities to run exactly the templates you need. You can filter by severity, tags, authors, protocol types, and more.
+
+## Severity filtering
+
+Filter templates based on vulnerability severity levels:
+
+### Include by severity
+
+<CodeGroup>
+```bash Critical only
+nuclei -target https://example.com -severity critical
+```
+
+```bash High and critical
+nuclei -target https://example.com -severity high,critical
+```
+
+```bash Multiple levels
+nuclei -target https://example.com -severity medium,high,critical
+```
+
+```bash Short flag
+nuclei -u https://example.com -s critical,high
+```
+</CodeGroup>
+
+<Info>
+  Available severity levels: `info`, `low`, `medium`, `high`, `critical`, `unknown`
+</Info>
+
+### Exclude by severity
+
+Exclude templates based on severity:
+
+```bash
+# Exclude info and low severity
+nuclei -target https://example.com -exclude-severity info,low
+
+# Exclude only info
+nuclei -target https://example.com -exclude-severity info
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -es info,low
+```
+
+<Tip>
+  Combine inclusion and exclusion:
+  ```bash
+  nuclei -target example.com -severity critical,high,medium -exclude-severity unknown
+  ```
+</Tip>
+
+## Tag-based filtering
+
+### Include templates by tags
+
+Run templates with specific tags:
+
+<CodeGroup>
+```bash Single tag
+nuclei -target https://example.com -tags cve
+```
+
+```bash Multiple tags
+nuclei -target https://example.com -tags cve,xss,sqli
+```
+
+```bash From file
+cat tags.txt
+cve
+auth-bypass
+rce
+
+nuclei -target https://example.com -tags tags.txt
+```
+</CodeGroup>
+
+Common tags:
+- `cve` - Known CVEs
+- `xss` - Cross-Site Scripting
+- `sqli` - SQL Injection
+- `rce` - Remote Code Execution
+- `lfi` - Local File Inclusion
+- `ssrf` - Server-Side Request Forgery
+- `redirect` - Open Redirect
+- `exposure` - Information Disclosure
+- `misconfig` - Misconfiguration
+- `auth-bypass` - Authentication Bypass
+- `default-login` - Default Credentials
+
+### Exclude templates by tags
+
+```bash
+# Exclude specific tags
+nuclei -target https://example.com -exclude-tags dos,fuzz,intrusive
+
+# Exclude from file
+nuclei -target https://example.com -exclude-tags exclude-tags.txt
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -etags dos
+```
+
+<Warning>
+  Some templates are tagged as `intrusive` or `dos` because they may disrupt services. Exclude these for production scans.
+</Warning>
+
+### Force include excluded tags
+
+Include tags even if they're in the exclusion list:
+
+```bash
+nuclei -target https://example.com -include-tags dos
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -itags dos
+```
+
+### List all available tags
+
+Display all tags available in your template collection:
+
+```bash
+nuclei -tag-list
+```
+
+Short flag:
+```bash
+nuclei -tgl
+```
+
+## Author filtering
+
+Filter templates by their authors:
+
+<CodeGroup>
+```bash Single author
+nuclei -target https://example.com -author pdteam
+```
+
+```bash Multiple authors
+nuclei -target https://example.com -author pdteam,dhiyaneshdk,pikpikcu
+```
+
+```bash From file
+nuclei -target https://example.com -author authors.txt
+```
+</CodeGroup>
+
+Short flag:
+```bash
+nuclei -u https://example.com -a pdteam
+```
+
+<Info>
+  Use author filtering to run templates from trusted contributors or your internal security team.
+</Info>
+
+## Protocol type filtering
+
+Filter templates by protocol:
+
+### Include by protocol
+
+<CodeGroup>
+```bash HTTP only
+nuclei -target https://example.com -type http
+```
+
+```bash Multiple protocols
+nuclei -target example.com -type dns,ssl,http
+```
+
+```bash Network protocols
+nuclei -target 192.168.1.0/24 -type tcp,ssl
+```
+</CodeGroup>
+
+Short flag:
+```bash
+nuclei -u https://example.com -pt http,dns
+```
+
+Available protocol types:
+- `http` - HTTP/HTTPS requests
+- `dns` - DNS queries
+- `tcp` / `network` - TCP connections
+- `ssl` - SSL/TLS checks
+- `websocket` - WebSocket connections
+- `whois` - WHOIS lookups
+- `code` - Code execution
+- `javascript` - JavaScript runtime
+- `file` - File operations
+- `headless` - Headless browser
+- `workflow` - Multi-step workflows
+
+### Exclude by protocol
+
+```bash
+# Exclude headless templates
+nuclei -target https://example.com -exclude-type headless
+
+# Exclude multiple protocols
+nuclei -target example.com -exclude-type headless,code,javascript
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -ept headless
+```
+
+<Note>
+  Headless templates require additional dependencies and are slower. Exclude them for faster scans when not needed.
+</Note>
+
+## Template condition filtering
+
+Filter templates using custom expressions:
+
+```bash
+# Templates with CVE in name
+nuclei -target https://example.com -template-condition 'contains(id, "CVE")'
+
+# High severity templates only
+nuclei -target https://example.com -template-condition 'severity == "high"'
+
+# Templates by specific author and high severity
+nuclei -target https://example.com -template-condition 'author == "pdteam" && severity == "high"'
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -tc 'contains(id, "2024")'
+```
+
+<Info>
+  Template conditions use a simple expression language supporting:
+  - Comparison: `==`, `!=`, `>`, `<`, `>=`, `<=`
+  - Logical: `&&`, `||`, `!`
+  - Functions: `contains()`, `startsWith()`, `endsWith()`
+</Info>
+
+## Matcher exclusion
+
+Exclude specific matchers from results:
+
+```bash
+# Exclude specific matcher names
+nuclei -target https://example.com -exclude-matchers status-code-200
+
+# Exclude multiple matchers
+nuclei -target https://example.com -exclude-matchers matcher1,matcher2
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -em status-code-200
+```
+
+<Tip>
+  Use matcher exclusion to reduce false positives without modifying template files.
+</Tip>
+
+## Combining filters
+
+Filters can be combined for precise template selection:
+
+### Example 1: Production-safe CVE scan
+
+```bash
+nuclei -target https://example.com \
+  -tags cve \
+  -severity critical,high \
+  -exclude-tags dos,intrusive \
+  -type http
+```
+
+### Example 2: WordPress security assessment
+
+```bash
+nuclei -target https://wordpress-site.com \
+  -tags wordpress \
+  -severity medium,high,critical \
+  -exclude-severity info \
+  -author pdteam
+```
+
+### Example 3: Network infrastructure scan
+
+```bash
+nuclei -target 192.168.1.0/24 \
+  -type network,ssl,dns \
+  -severity high,critical \
+  -exclude-tags dos
+```
+
+### Example 4: API security testing
+
+```bash
+nuclei -target https://api.example.com \
+  -tags api,auth,sqli,xss \
+  -severity medium,high,critical \
+  -type http
+```
+
+### Example 5: Fast critical scan
+
+```bash
+nuclei -list targets.txt \
+  -severity critical \
+  -exclude-type headless,code \
+  -rate-limit 200 \
+  -silent
+```
+
+## Advanced filtering techniques
+
+### Filter by template metadata
+
+Use template conditions to filter by any metadata field:
+
+<CodeGroup>
+```bash By classification
+nuclei -u example.com -tc 'contains(classification, "cvss-score")'
+```
+
+```bash By reference
+nuclei -u example.com -tc 'contains(reference, "cve.mitre.org")'
+```
+
+```bash Complex condition
+nuclei -u example.com -tc 'severity == "critical" && contains(tags, "rce")'
+```
+</CodeGroup>
+
+### Negative filtering
+
+Exclude everything except specific criteria:
+
+```bash
+# Only critical CVEs, exclude everything else
+nuclei -target https://example.com \
+  -tags cve \
+  -severity critical \
+  -exclude-tags dos,fuzz,intrusive,misc
+```
+
+### Precision filtering
+
+Combine multiple filter types for surgical precision:
+
+```bash
+nuclei -target https://example.com \
+  -author pdteam,dhiyaneshdk \
+  -tags cve,exploit \
+  -severity critical,high \
+  -type http \
+  -exclude-tags dos \
+  -template-condition 'contains(id, "2024")'
+```
+
+## Filter templates by file
+
+Many filter flags support file input:
+
+### Tags from file
+
+```txt priority-tags.txt
+cve
+rce
+auth-bypass
+sqli
+```
+
+```bash
+nuclei -target https://example.com -tags priority-tags.txt
+```
+
+### Authors from file
+
+```txt trusted-authors.txt
+pdteam
+dhiyaneshdk
+pikpikcu
+```
+
+```bash
+nuclei -target https://example.com -author trusted-authors.txt
+```
+
+### Exclusions from file
+
+```txt exclude-tags.txt
+dos
+fuzz
+intrusive
+headless
+```
+
+```bash
+nuclei -target https://example.com -exclude-tags exclude-tags.txt
+```
+
+## Filter validation
+
+### Preview filtered templates
+
+List templates that match your filters without running them:
+
+```bash
+nuclei -template-list -tags cve -severity critical
+```
+
+Short flag:
+```bash
+nuclei -tl -tags cve -s critical
+```
+
+### Count matching templates
+
+```bash
+nuclei -tl -tags wordpress | wc -l
+```
+
+<Tip>
+  Use `-template-list` to verify your filters select the intended templates before running a scan.
+</Tip>
+
+## Performance considerations
+
+### Optimize for speed
+
+Filter out slow template types:
+
+```bash
+nuclei -target https://example.com \
+  -severity critical,high \
+  -exclude-type headless,code,javascript \
+  -rate-limit 300
+```
+
+### Balance coverage and speed
+
+```bash
+# Fast initial scan
+nuclei -u https://example.com \
+  -severity critical,high \
+  -type http \
+  -rate-limit 200
+
+# Comprehensive follow-up
+nuclei -u https://example.com \
+  -severity medium,low \
+  -exclude-tags dos \
+  -rate-limit 100
+```
+
+## Common filtering patterns
+
+### Pattern 1: Production-safe scan
+
+```bash
+nuclei -list production-targets.txt \
+  -severity medium,high,critical \
+  -exclude-tags dos,intrusive,fuzz \
+  -exclude-type headless \
+  -rate-limit 50
+```
+
+### Pattern 2: CVE hunting
+
+```bash
+nuclei -list assets.txt \
+  -tags cve \
+  -severity critical,high \
+  -template-condition 'contains(id, "2024")' \
+  -silent \
+  -json-export cve-findings.json
+```
+
+### Pattern 3: Technology-specific
+
+```bash
+nuclei -target https://jenkins.example.com \
+  -tags jenkins \
+  -severity high,critical \
+  -author pdteam \
+  -type http
+```
+
+### Pattern 4: Quick triage
+
+```bash
+nuclei -u https://example.com \
+  -severity critical \
+  -tags rce,auth-bypass \
+  -exclude-type headless,code \
+  -silent
+```
+
+### Pattern 5: Comprehensive audit
+
+```bash
+nuclei -list all-targets.txt \
+  -severity medium,high,critical \
+  -exclude-tags dos \
+  -stats \
+  -json-export full-audit.json
+```
+
+## Troubleshooting filters
+
+<Steps>
+  <Step title="Verify template count">
+    Check how many templates match your filters:
+    ```bash
+    nuclei -tl -tags cve -severity critical | wc -l
+    ```
+  </Step>
+  
+  <Step title="Check tag availability">
+    List all available tags:
+    ```bash
+    nuclei -tgl | grep -i wordpress
+    ```
+  </Step>
+  
+  <Step title="Test conditions">
+    Validate template conditions:
+    ```bash
+    nuclei -tl -tc 'severity == "critical"' | head -n 10
+    ```
+  </Step>
+  
+  <Step title="Combine with verbose">
+    See which templates are being loaded:
+    ```bash
+    nuclei -u example.com -tags cve -vv | grep "Loading"
+    ```
+  </Step>
+</Steps>
+
+## Best practices
+
+<Note>
+  **Start broad, then narrow**: Begin with severity filtering, then add tag and protocol filters as needed.
+</Note>
+
+<Tip>
+  **Use exclusions for safety**: Always exclude `dos` and `intrusive` tags for production scans.
+</Tip>
+
+<Warning>
+  **Validate before large scans**: Use `-template-list` to verify your filters before scanning large target lists.
+</Warning>
+
+<Info>
+  **Document your filters**: Save commonly used filter combinations in shell scripts or configuration files.
+</Info>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Template selection"
+    icon="filter"
+    href="/usage/template-selection"
+  >
+    Learn how to select specific templates
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Export and format filtered results
+  </Card>
+  <Card
+    title="Rate limiting"
+    icon="gauge"
+    href="/usage/rate-limiting"
+  >
+    Control filtered template execution speed
+  </Card>
+  <Card
+    title="Writing templates"
+    icon="code"
+    href="/templates/introduction"
+  >
+    Create custom templates with proper tags
+  </Card>
+</CardGroup>

@@ -1,0 +1,559 @@
+---
+title: Key features
+description: Explore Nuclei's powerful capabilities and what makes it the modern choice for vulnerability scanning
+---
+
+## Core capabilities
+
+Nuclei is designed for modern security teams who need fast, accurate, and customizable vulnerability detection.
+
+### YAML-based templates
+
+Nuclei's template system is its most powerful feature. Templates are written in simple YAML format, making them:
+
+<CardGroup cols={2}>
+  <Card icon="file-code">
+    **Easy to write** - No programming required, just YAML syntax
+  </Card>
+  <Card icon="eye">
+    **Human-readable** - Templates are self-documenting and easy to review
+  </Card>
+  <Card icon="share-nodes">
+    **Shareable** - Templates work across all platforms and Nuclei versions
+  </Card>
+  <Card icon="palette">
+    **Customizable** - Adapt existing templates or create new ones easily
+  </Card>
+</CardGroup>
+
+Example template structure:
+
+```yaml
+id: http-missing-security-headers
+
+info:
+  name: HTTP Missing Security Headers
+  author: projectdiscovery
+  severity: info
+  description: Checks for missing security headers
+  
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+      
+    matchers:
+      - type: dsl
+        dsl:
+          - "!contains(tolower(header), 'x-frame-options')"
+```
+
+### Multi-protocol support
+
+Unlike traditional scanners limited to HTTP, Nuclei supports multiple protocols out of the box:
+
+<Tabs>
+  <Tab title="HTTP/HTTPS">
+    Full HTTP protocol support with:
+    - Custom headers and cookies
+    - Multiple HTTP methods (GET, POST, PUT, DELETE, etc.)
+    - Request/response manipulation
+    - Follow redirects control
+    - Raw HTTP requests
+    
+    Perfect for web application security testing.
+  </Tab>
+  
+  <Tab title="DNS">
+    DNS protocol support for:
+    - DNS enumeration
+    - Subdomain discovery
+    - DNS zone transfer detection
+    - Custom DNS queries
+    
+    Identify DNS misconfigurations and information disclosure.
+  </Tab>
+  
+  <Tab title="Network/TCP">
+    Network protocol scanning:
+    - Port scanning
+    - Service detection
+    - Banner grabbing
+    - Custom TCP payloads
+    
+    Test network services and infrastructure.
+  </Tab>
+  
+  <Tab title="SSL/TLS">
+    SSL/TLS certificate testing:
+    - Certificate validation
+    - Expired certificates
+    - Self-signed certificates
+    - Weak cipher detection
+    
+    Ensure proper SSL/TLS configuration.
+  </Tab>
+  
+  <Tab title="WebSocket">
+    WebSocket protocol support:
+    - WebSocket connection testing
+    - Message sending/receiving
+    - Custom payloads
+    
+    Test real-time communication channels.
+  </Tab>
+  
+  <Tab title="WHOIS">
+    WHOIS protocol queries:
+    - Domain information retrieval
+    - Registration details
+    - Nameserver information
+    
+    Gather domain intelligence.
+  </Tab>
+  
+  <Tab title="JavaScript">
+    JavaScript execution engine:
+    - Run custom JavaScript code
+    - Complex vulnerability checks
+    - Protocol implementation
+    
+    Maximum flexibility for custom detection logic.
+  </Tab>
+  
+  <Tab title="Code">
+    Code protocol for:
+    - Source code analysis
+    - Configuration file checks
+    - Secret detection
+    
+    Scan local files and code repositories.
+  </Tab>
+  
+  <Tab title="File">
+    File protocol support:
+    - Local file scanning
+    - Pattern matching in files
+    - Configuration auditing
+    
+    Audit local system configurations.
+  </Tab>
+</Tabs>
+
+### Zero false positives
+
+Nuclei reduces false positives through:
+
+<Steps>
+  <Step title="Multi-step verification">
+    Templates can perform multiple verification steps to confirm a vulnerability exists, not just pattern matching.
+  </Step>
+  
+  <Step title="Dynamic matchers">
+    Use DSL (Domain Specific Language) functions to validate responses dynamically based on context.
+  </Step>
+  
+  <Step title="Real-world simulation">
+    Templates simulate actual exploitation steps to verify vulnerabilities are exploitable.
+  </Step>
+  
+  <Step title="Response validation">
+    Validate multiple response attributes (status code, headers, body, timing) before reporting.
+  </Step>
+</Steps>
+
+<Note>
+  By simulating real-world exploitation steps, Nuclei significantly reduces false positives compared to signature-based scanners.
+</Note>
+
+### High-performance scanning
+
+Nuclei is built for speed:
+
+<CardGroup cols={2}>
+  <Card icon="gauge-high" title="Parallel processing">
+    Execute multiple templates simultaneously with configurable concurrency
+  </Card>
+  <Card icon="layer-group" title="Request clustering">
+    Automatically groups identical requests across templates to reduce redundant network calls
+  </Card>
+  <Card icon="bolt" title="Optimized engine">
+    Written in Go for maximum performance and low resource usage
+  </Card>
+  <Card icon="sliders" title="Rate limiting">
+    Built-in rate limiting to control scan speed and avoid target overload
+  </Card>
+</CardGroup>
+
+Performance tuning options:
+
+```bash
+# Maximum parallel templates
+nuclei -target example.com -concurrency 50
+
+# Requests per second limit
+nuclei -target example.com -rate-limit 150
+
+# Bulk size per template
+nuclei -target example.com -bulk-size 25
+```
+
+## Advanced features
+
+### Workflows
+
+Workflows enable multi-step scanning logic where one template's output feeds into another:
+
+```yaml
+workflows:
+  - template: http/technologies/tech-detect.yaml
+    subtemplates:
+      - tags: wordpress
+      - tags: joomla
+```
+
+Workflows allow:
+- Conditional template execution
+- Technology-specific scanning
+- Reduced scan time by running relevant templates only
+- Complex attack chain simulation
+
+### Fuzzing and DAST
+
+Nuclei includes built-in fuzzing capabilities for Dynamic Application Security Testing:
+
+```bash
+# Enable DAST mode
+nuclei -target https://example.com -dast
+
+# Control fuzzing aggression
+nuclei -target https://example.com -dast -fuzz-aggression high
+```
+
+Fuzzing features:
+- Automatic injection point detection
+- Multiple payload types (XSS, SQLi, command injection, etc.)
+- Smart parameter fuzzing
+- Scope control for targeted fuzzing
+
+### Interactsh integration
+
+Detect out-of-band (OOB) vulnerabilities with built-in Interactsh support:
+
+- Blind SSRF detection
+- Out-of-band SQL injection
+- XXE with no direct response
+- DNS exfiltration
+- Remote code execution verification
+
+<Info>
+  Interactsh runs automatically - no configuration needed. Nuclei uses public Interactsh servers by default or you can host your own.
+</Info>
+
+```bash
+# Use custom Interactsh server
+nuclei -target example.com -interactsh-server https://your-server.com
+
+# Disable Interactsh
+nuclei -target example.com -no-interactsh
+```
+
+### Headless browser support
+
+For testing JavaScript-heavy applications:
+
+```bash
+# Enable headless browser
+nuclei -target https://example.com -headless
+
+# Show browser window
+nuclei -target https://example.com -headless -show-browser
+```
+
+Headless capabilities:
+- JavaScript execution
+- DOM-based XSS detection
+- Client-side vulnerabilities
+- Browser-based actions (click, type, navigate)
+
+### Custom DSL functions
+
+Nuclei includes 100+ built-in DSL functions for template logic:
+
+<AccordionGroup>
+  <Accordion title="String functions">
+    - `contains(str, substr)` - Check if string contains substring
+    - `len(str)` - Get string length
+    - `to_lower(str)` - Convert to lowercase
+    - `regex(pattern, str)` - Regular expression matching
+    - `base64_decode(str)` - Decode base64
+  </Accordion>
+  
+  <Accordion title="Encoding functions">
+    - `base64(str)` - Base64 encode
+    - `url_encode(str)` - URL encode
+    - `hex_encode(str)` - Hex encode
+    - `html_escape(str)` - HTML escape
+    - `md5(str)` - MD5 hash
+    - `sha256(str)` - SHA256 hash
+  </Accordion>
+  
+  <Accordion title="Network functions">
+    - `resolve(host)` - DNS resolution
+    - `ip_format(ip)` - Format IP address
+    - `compare_versions(v1, v2)` - Version comparison
+  </Accordion>
+  
+  <Accordion title="Utility functions">
+    - `rand_int(min, max)` - Random integer
+    - `rand_text_alpha(n)` - Random alphabetic string
+    - `timestamp()` - Current Unix timestamp
+  </Accordion>
+</AccordionGroup>
+
+View all DSL functions:
+
+```bash
+nuclei -list-dsl-function
+```
+
+### Cloud integration
+
+Nuclei integrates with ProjectDiscovery Cloud for:
+
+<CardGroup cols={2}>
+  <Card icon="chart-line" title="Result visualization">
+    View and analyze scan results in a web dashboard
+  </Card>
+  <Card icon="database" title="Centralized storage">
+    Store all scan results in one place
+  </Card>
+  <Card icon="users" title="Team collaboration">
+    Share findings and templates with your team
+  </Card>
+  <Card icon="bell" title="Continuous monitoring">
+    Set up recurring scans and get alerts
+  </Card>
+</CardGroup>
+
+Enable cloud upload:
+
+```bash
+# Configure authentication
+nuclei -auth
+
+# Upload results to dashboard
+nuclei -target https://example.com -dashboard
+```
+
+<Note>
+  Cloud features are completely optional and free. Nuclei works fully offline without any cloud connection.
+</Note>
+
+## Integration capabilities
+
+### CI/CD integration
+
+Nuclei is designed for automation:
+
+```yaml GitHub Actions
+name: Nuclei Scan
+on: [push, pull_request]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Nuclei Scan
+        uses: projectdiscovery/nuclei-action@main
+        with:
+          target: 'https://example.com'
+```
+
+### Reporting integrations
+
+Nuclei integrates with popular platforms:
+
+<CardGroup cols={2}>
+  <Card icon="jira" title="Jira">
+    Automatically create tickets for findings
+  </Card>
+  <Card icon="github" title="GitHub">
+    Create GitHub issues and security alerts
+  </Card>
+  <Card icon="gitlab" title="GitLab">
+    Integration with GitLab issue tracking
+  </Card>
+  <Card icon="slack" title="Slack">
+    Send notifications to Slack channels
+  </Card>
+  <Card icon="webhook" title="Webhooks">
+    Custom webhook integrations
+  </Card>
+  <Card icon="database" title="Elasticsearch">
+    Send results to Elasticsearch
+  </Card>
+  <Card icon="chart-simple" title="Splunk">
+    Forward findings to Splunk
+  </Card>
+  <Card icon="code" title="APIs">
+    REST API for custom integrations
+  </Card>
+</CardGroup>
+
+### Library/SDK usage
+
+Embed Nuclei into your Go applications:
+
+```go
+import nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+
+// Create engine
+ne, err := nuclei.NewNucleiEngine(
+    nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+        Severity: "high,critical",
+    }),
+)
+
+// Load targets
+ne.LoadTargets([]string{"https://example.com"}, false)
+
+// Execute scan
+err = ne.ExecuteWithCallback(nil)
+```
+
+## Template ecosystem
+
+### Community templates
+
+The [nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) repository contains:
+
+- **7,000+ templates** covering various vulnerabilities
+- **Daily updates** for new CVEs and security issues
+- **Community contributions** from thousands of security researchers
+- **Organized by category** (CVEs, misconfigurations, exposed panels, etc.)
+
+### Template categories
+
+<Tabs>
+  <Tab title="CVEs">
+    Templates for known CVE vulnerabilities:
+    - Log4Shell (CVE-2021-44228)
+    - Spring4Shell (CVE-2022-22965)
+    - ProxyShell, ProxyLogon
+    - Thousands more CVEs
+  </Tab>
+  
+  <Tab title="Misconfigurations">
+    Common security misconfigurations:
+    - Missing security headers
+    - Directory listing enabled
+    - Debug endpoints exposed
+    - Default credentials
+    - Insecure SSL/TLS configuration
+  </Tab>
+  
+  <Tab title="Exposed panels">
+    Detection of exposed admin interfaces:
+    - Jenkins
+    - Grafana
+    - phpMyAdmin
+    - Admin panels
+    - Management consoles
+  </Tab>
+  
+  <Tab title="Vulnerabilities">
+    Various vulnerability types:
+    - SQL injection
+    - XSS (Cross-Site Scripting)
+    - SSRF (Server-Side Request Forgery)
+    - XXE (XML External Entity)
+    - Command injection
+    - Path traversal
+  </Tab>
+  
+  <Tab title="Technologies">
+    Technology detection:
+    - CMS detection (WordPress, Joomla, Drupal)
+    - Framework identification
+    - Server fingerprinting
+    - Version detection
+  </Tab>
+</Tabs>
+
+### Custom templates
+
+Create your own templates for:
+- Organization-specific checks
+- Custom vulnerability research
+- Proprietary application testing
+- Security policy compliance
+
+<Card
+  title="Learn to write templates"
+  icon="code"
+  href="/templates/introduction"
+>
+  Detailed guide on creating custom Nuclei templates
+</Card>
+
+## Security and privacy
+
+<Warning>
+  **Important**: This project is primarily built to be used as a standalone CLI tool. Running Nuclei as a service may pose security risks. Use with caution and additional security measures.
+</Warning>
+
+### Safe scanning practices
+
+- **Permission required** - Always get permission before scanning targets you don't own
+- **Rate limiting** - Use appropriate rate limits to avoid DoS
+- **Network isolation** - Run scans from controlled networks
+- **Data handling** - Secure storage of scan results containing sensitive data
+
+### Template signing
+
+Nuclei supports template signing for security:
+
+```bash
+# Sign templates
+nuclei -sign -templates /path/to/templates/
+
+# Only run signed templates
+nuclei -target example.com -disable-unsigned-templates
+```
+
+## Next steps
+
+Explore specific features in detail:
+
+<CardGroup cols={2}>
+  <Card
+    title="Running scans"
+    icon="play"
+    href="/usage/running-scans"
+  >
+    Master different scanning techniques
+  </Card>
+  <Card
+    title="Template selection"
+    icon="filter"
+    href="/usage/template-selection"
+  >
+    Learn advanced filtering and selection
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Export and format scan results
+  </Card>
+  <Card
+    title="Write templates"
+    icon="code"
+    href="/templates/introduction"
+  >
+    Create custom detection templates
+  </Card>
+</CardGroup>

@@ -1,0 +1,357 @@
+---
+title: Environment variables
+description: Configure Nuclei behavior using environment variables for automation and CI/CD integration
+---
+
+Nuclei supports various environment variables that allow you to configure its behavior without command-line flags. This is particularly useful for automation, CI/CD pipelines, and containerized environments.
+
+## Core environment variables
+
+### Template signing
+
+<ParamField path="NUCLEI_SIGNATURE_PRIVATE_KEY" type="string">
+  Private key used for signing templates. Required when using the `-sign` flag.
+  
+  ```bash
+  export NUCLEI_SIGNATURE_PRIVATE_KEY="path/to/private.key"
+  nuclei -sign -t templates/
+  ```
+</ParamField>
+
+<ParamField path="NUCLEI_SIGNATURE_PUBLIC_KEY" type="string">
+  Public key used for verifying template signatures.
+  
+  ```bash
+  export NUCLEI_SIGNATURE_PUBLIC_KEY="path/to/public.key"
+  ```
+</ParamField>
+
+### Template locations
+
+<ParamField path="NUCLEI_TEMPLATES_PATH" type="string">
+  Override the default templates directory location.
+  
+  ```bash
+  export NUCLEI_TEMPLATES_PATH="/custom/templates/path"
+  ```
+</ParamField>
+
+### Authentication
+
+<ParamField path="GITHUB_TOKEN" type="string">
+  GitHub personal access token for:
+  - Downloading private templates from GitHub
+  - Creating issues via GitHub integration
+  - Avoiding rate limits
+  
+  ```bash
+  export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+  ```
+</ParamField>
+
+<ParamField path="GITLAB_TOKEN" type="string">
+  GitLab personal access token for GitLab integrations.
+  
+  ```bash
+  export GITLAB_TOKEN="glpat-xxxxxxxxxxxx"
+  ```
+</ParamField>
+
+<ParamField path="JIRA_API_TOKEN" type="string">
+  Jira API token for issue tracking integration.
+  
+  ```bash
+  export JIRA_API_TOKEN="your-api-token"
+  ```
+</ParamField>
+
+### Cloud integration
+
+<ParamField path="PDCP_API_KEY" type="string">
+  ProjectDiscovery Cloud Platform API key for cloud integration.
+  
+  ```bash
+  export PDCP_API_KEY="pdcp_xxxxxxxxxxxx"
+  nuclei -target example.com -dashboard
+  ```
+</ParamField>
+
+### AWS credentials
+
+<ParamField path="AWS_ACCESS_KEY_ID" type="string">
+  AWS access key for S3 template storage and AWS-related templates.
+</ParamField>
+
+<ParamField path="AWS_SECRET_ACCESS_KEY" type="string">
+  AWS secret access key.
+</ParamField>
+
+<ParamField path="AWS_REGION" type="string">
+  AWS region for S3 operations. Defaults to `us-east-1`.
+</ParamField>
+
+### Azure credentials
+
+<ParamField path="AZURE_STORAGE_ACCOUNT" type="string">
+  Azure storage account name for Azure Blob Storage templates.
+</ParamField>
+
+<ParamField path="AZURE_STORAGE_KEY" type="string">
+  Azure storage account access key.
+</ParamField>
+
+## Debug and development
+
+<ParamField path="DEBUG" type="boolean">
+  Enable debug output for troubleshooting.
+  
+  ```bash
+  export DEBUG=true
+  nuclei -target example.com
+  ```
+</ParamField>
+
+<ParamField path="SHOW_DSL_ERRORS" type="boolean">
+  Show DSL function execution errors in output.
+  
+  ```bash
+  export SHOW_DSL_ERRORS=true
+  ```
+</ParamField>
+
+<ParamField path="DEBUG_TEMPLATES" type="string">
+  Debug specific templates by path or ID.
+  
+  ```bash
+  export DEBUG_TEMPLATES="cves/2021/CVE-2021-44228.yaml"
+  ```
+</ParamField>
+
+## Proxy configuration
+
+<ParamField path="HTTP_PROXY" type="string">
+  HTTP proxy server for Nuclei requests.
+  
+  ```bash
+  export HTTP_PROXY="http://proxy.example.com:8080"
+  ```
+</ParamField>
+
+<ParamField path="HTTPS_PROXY" type="string">
+  HTTPS proxy server.
+  
+  ```bash
+  export HTTPS_PROXY="http://proxy.example.com:8443"
+  ```
+</ParamField>
+
+<ParamField path="NO_PROXY" type="string">
+  Comma-separated list of domains to bypass proxy.
+  
+  ```bash
+  export NO_PROXY="localhost,127.0.0.1,.internal.com"
+  ```
+</ParamField>
+
+## Interactsh configuration
+
+<ParamField path="INTERACTSH_SERVER" type="string">
+  Custom Interactsh server URL for OAST testing.
+  
+  ```bash
+  export INTERACTSH_SERVER="https://interactsh.example.com"
+  ```
+</ParamField>
+
+<ParamField path="INTERACTSH_TOKEN" type="string">
+  Authentication token for self-hosted Interactsh servers.
+  
+  ```bash
+  export INTERACTSH_TOKEN="your-token"
+  ```
+</ParamField>
+
+## Output and reporting
+
+<ParamField path="MARKDOWN_EXPORT_SORT_MODE" type="string">
+  Sort mode for Markdown exports. Options: `template`, `severity`, `host`.
+  
+  ```bash
+  export MARKDOWN_EXPORT_SORT_MODE="template"
+  nuclei -target example.com -markdown-export report/
+  ```
+</ParamField>
+
+## CI/CD integration examples
+
+### GitHub Actions
+
+```yaml
+name: Nuclei Scan
+on: [push]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Nuclei
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PDCP_API_KEY: ${{ secrets.PDCP_API_KEY }}
+        run: |
+          nuclei -target ${{ github.event.repository.url }} \
+            -json-export results.json \
+            -dashboard
+```
+
+### GitLab CI
+
+```yaml
+security-scan:
+  stage: test
+  variables:
+    GITLAB_TOKEN: $CI_JOB_TOKEN
+    DEBUG: "true"
+  script:
+    - nuclei -target $CI_PROJECT_URL -json-export results.json
+  artifacts:
+    paths:
+      - results.json
+```
+
+### Docker
+
+```bash
+docker run \
+  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+  -e PDCP_API_KEY="$PDCP_API_KEY" \
+  -v $(pwd)/results:/results \
+  projectdiscovery/nuclei:latest \
+  -target example.com \
+  -json-export /results/output.json
+```
+
+## Secrets management
+
+<Warning>
+  Never commit credentials or API tokens to version control. Use your CI/CD platform's secrets management or environment-specific `.env` files.
+</Warning>
+
+### Using .env files locally
+
+Create a `.env` file (add to `.gitignore`):
+
+```bash
+# .env
+GITHUB_TOKEN=ghp_xxxxxxxxxxxx
+PDCP_API_KEY=pdcp_xxxxxxxxxxxx
+JIRA_API_TOKEN=your-jira-token
+```
+
+Load it before running Nuclei:
+
+```bash
+source .env
+nuclei -target example.com
+```
+
+### Using Docker secrets
+
+```bash
+# Create secrets
+echo "your-token" | docker secret create github_token -
+
+# Use in Docker Compose
+services:
+  nuclei:
+    image: projectdiscovery/nuclei:latest
+    secrets:
+      - github_token
+    environment:
+      GITHUB_TOKEN: /run/secrets/github_token
+```
+
+## Variable precedence
+
+Configuration is applied in this order (later overrides earlier):
+
+1. Default values
+2. Configuration file (`~/.config/nuclei/config.yaml`)
+3. **Environment variables**
+4. Command-line flags
+
+<Tip>
+  Environment variables are useful when you need different settings per environment (dev/staging/prod) without changing code.
+</Tip>
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Use secrets management">
+    Store sensitive tokens in:
+    - GitHub Secrets (GitHub Actions)
+    - GitLab CI/CD Variables (GitLab CI)
+    - Azure Key Vault (Azure Pipelines)
+    - AWS Secrets Manager (AWS environments)
+    - HashiCorp Vault (enterprise)
+  </Accordion>
+
+  <Accordion title="Rotate credentials regularly">
+    Set expiration dates on API tokens and rotate them periodically. Update your CI/CD secrets when rotating.
+  </Accordion>
+
+  <Accordion title="Use least privilege">
+    Grant tokens only the minimum permissions needed:
+    - GitHub: `repo` scope for private templates
+    - Jira: Issue creation only
+    - Cloud platforms: Read-only for templates
+  </Accordion>
+
+  <Accordion title="Isolate environments">
+    Use different tokens for dev/staging/prod environments to limit blast radius of compromised credentials.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Environment variables not working">
+    Check:
+    1. Variable is properly exported: `echo $VARIABLE_NAME`
+    2. No typos in variable names (they're case-sensitive)
+    3. Command-line flags don't override the environment variable
+    4. Restart shell session after setting variables
+  </Accordion>
+
+  <Accordion title="Authentication failures">
+    Verify:
+    1. Token is valid and not expired
+    2. Token has required permissions/scopes
+    3. No extra whitespace in token value
+    4. Token format is correct for the service
+  </Accordion>
+
+  <Accordion title="Proxy issues">
+    Debug with:
+    ```bash
+    export DEBUG=true
+    nuclei -target example.com -debug-req
+    ```
+    
+    Check:
+    1. Proxy URL format is correct
+    2. Proxy is accessible from your environment
+    3. NO_PROXY excludes internal domains if needed
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Reporting integrations" icon="chart-line" href="/configuration/reporting-integrations">
+    Set up Jira, Slack, and other integrations
+  </Card>
+  <Card title="Authentication" icon="key" href="/configuration/authentication">
+    Configure authentication for private templates
+  </Card>
+</CardGroup>

@@ -1,0 +1,520 @@
+---
+title: Running scans
+description: Learn how to execute vulnerability scans with Nuclei and understand the different scanning modes
+---
+
+## Basic scan execution
+
+Nuclei provides flexible options for running vulnerability scans against single or multiple targets.
+
+<Steps>
+  <Step title="Run a basic scan">
+    Execute a scan against a single target URL:
+    
+    ```bash
+    nuclei -target https://example.com
+    ```
+    
+    You can also use the short flag `-u`:
+    
+    ```bash
+    nuclei -u https://example.com
+    ```
+    
+    <Note>
+      On first run, Nuclei automatically downloads the latest templates from the nuclei-templates repository.
+    </Note>
+  </Step>
+  
+  <Step title="Monitor scan progress">
+    Nuclei displays real-time progress and findings:
+    
+    ```
+    [2024-03-01 12:00:00] [CVE-2021-44228] [http] [critical] https://example.com/api
+    [2024-03-01 12:00:01] [self-signed-ssl] [ssl] [info] example.com:443
+    ```
+    
+    Each line shows the timestamp, template ID, protocol, severity, and target.
+  </Step>
+  
+  <Step title="View statistics">
+    Enable statistics to monitor scan metrics:
+    
+    ```bash
+    nuclei -target https://example.com -stats
+    ```
+    
+    For JSON-formatted statistics:
+    
+    ```bash
+    nuclei -target https://example.com -stats -stats-json
+    ```
+  </Step>
+</Steps>
+
+## Scanning modes
+
+### Single target scan
+
+Scan a single web application or host:
+
+<CodeGroup>
+```bash Web application
+nuclei -target https://example.com
+```
+
+```bash IP address
+nuclei -target 192.168.1.10
+```
+
+```bash Domain
+nuclei -target example.com
+```
+
+```bash Host with port
+nuclei -target example.com:8080
+```
+</CodeGroup>
+
+### Multiple targets from file
+
+Scan multiple targets listed in a file (one per line):
+
+```bash
+nuclei -list urls.txt
+```
+
+Or use the short flag:
+
+```bash
+nuclei -l urls.txt
+```
+
+<Tip>
+  Create a `urls.txt` file with one target per line:
+  ```
+  https://example.com
+  https://test.example.com
+  192.168.1.0/24
+  ```
+</Tip>
+
+### Network subnet scan
+
+Scan an entire network range using CIDR notation:
+
+```bash
+nuclei -target 192.168.1.0/24
+```
+
+This scans all hosts in the subnet for network-related vulnerabilities.
+
+### Scan all IPs for a domain
+
+Scan all IP addresses associated with a DNS record:
+
+```bash
+nuclei -target example.com -scan-all-ips
+```
+
+Or use the short flag:
+
+```bash
+nuclei -target example.com -sa
+```
+
+<Note>
+  This is useful when a domain has multiple A records or is behind a CDN.
+</Note>
+
+## Input modes
+
+### Standard input (stdin)
+
+Pipe targets directly from other tools:
+
+```bash
+echo https://example.com | nuclei
+```
+
+Chain with other ProjectDiscovery tools:
+
+```bash
+subfinder -d example.com -silent | httpx -silent | nuclei
+```
+
+<Tip>
+  Disable stdin with `-no-stdin` if you want to prevent reading from stdin.
+</Tip>
+
+### Special input formats
+
+Nuclei supports multiple input file formats:
+
+<Tabs>
+  <Tab title="List (default)">
+    Simple list of URLs, one per line:
+    
+    ```bash
+    nuclei -list targets.txt
+    ```
+  </Tab>
+  
+  <Tab title="Burp Suite">
+    Import from Burp Suite XML:
+    
+    ```bash
+    nuclei -list burp-export.xml -input-mode burp
+    ```
+    
+    Short flag:
+    ```bash
+    nuclei -list burp-export.xml -im burp
+    ```
+  </Tab>
+  
+  <Tab title="OpenAPI/Swagger">
+    Scan from OpenAPI specification:
+    
+    ```bash
+    nuclei -list swagger.json -input-mode openapi
+    ```
+    
+    Or:
+    ```bash
+    nuclei -list openapi.yaml -input-mode swagger
+    ```
+  </Tab>
+  
+  <Tab title="JSONL">
+    Use JSONL format for structured input:
+    
+    ```bash
+    nuclei -list targets.jsonl -input-mode jsonl
+    ```
+  </Tab>
+</Tabs>
+
+## Scan strategies
+
+Control how Nuclei distributes work across targets and templates:
+
+```bash
+# Auto-select optimal strategy (default)
+nuclei -target example.com -scan-strategy auto
+
+# Host spray: all templates against each host
+nuclei -list targets.txt -scan-strategy host-spray
+
+# Template spray: each template against all hosts
+nuclei -list targets.txt -scan-strategy template-spray
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -ss template-spray
+```
+
+<Info>
+  - **host-spray**: Better for scanning many targets with few templates
+  - **template-spray**: Better for scanning few targets with many templates
+  - **auto**: Automatically selects the best strategy
+</Info>
+
+## Resume interrupted scans
+
+Save and resume scan state to continue interrupted scans:
+
+```bash
+# Start a scan with resume capability
+nuclei -list targets.txt -resume scan-state.cfg
+
+# If interrupted, resume from where it stopped
+nuclei -resume scan-state.cfg
+```
+
+<Warning>
+  Template clustering is automatically disabled when using resume functionality.
+</Warning>
+
+## Target exclusion
+
+Exclude specific hosts from scanning:
+
+```bash
+# Exclude specific hosts
+nuclei -list targets.txt -exclude-hosts 192.168.1.1,192.168.1.2
+
+# Exclude CIDR ranges
+nuclei -list targets.txt -exclude-hosts 10.0.0.0/8
+
+# Exclude hostnames
+nuclei -list targets.txt -exclude-hosts internal.example.com
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -eh 192.168.1.1
+```
+
+## IP version selection
+
+Choose which IP version to use for scanning:
+
+```bash
+# IPv4 only (default)
+nuclei -target example.com -ip-version 4
+
+# IPv6 only
+nuclei -target example.com -ip-version 6
+
+# Both IPv4 and IPv6
+nuclei -target example.com -ip-version 4,6
+```
+
+Short flag:
+```bash
+nuclei -target example.com -iv 4,6
+```
+
+## Streaming mode
+
+Process input without sorting, useful for large input sets:
+
+```bash
+nuclei -list large-targets.txt -stream
+```
+
+<Note>
+  Streaming mode starts processing immediately without waiting to read all inputs, reducing memory usage for large target lists.
+</Note>
+
+## Passive mode
+
+Enable passive HTTP response processing without sending new requests:
+
+```bash
+nuclei -list responses.txt -passive
+```
+
+Useful for analyzing HTTP responses from files using matchers/extractors.
+
+## Headless browser scans
+
+Enable headless browser support for JavaScript-heavy applications:
+
+```bash
+# Enable headless mode
+nuclei -target https://example.com -headless
+
+# Show browser window (for debugging)
+nuclei -target https://example.com -headless -show-browser
+
+# Use system Chrome instead of bundled
+nuclei -target https://example.com -headless -system-chrome
+```
+
+Short flags:
+```bash
+nuclei -target https://example.com -headless -sb -sc
+```
+
+<Warning>
+  Headless mode requires additional dependencies. On Linux, running as root will disable the sandbox.
+</Warning>
+
+## Project mode
+
+Avoid sending duplicate requests across multiple scans:
+
+```bash
+# Enable project mode with default path
+nuclei -list targets.txt -project
+
+# Use custom project path
+nuclei -list targets.txt -project -project-path ./my-scan-project
+```
+
+<Info>
+  Project mode tracks sent requests to avoid duplication, useful for continuous scanning workflows.
+</Info>
+
+## Automatic technology-based scanning
+
+Automatically detect technologies and run relevant templates:
+
+```bash
+nuclei -target https://example.com -automatic-scan
+```
+
+Short flag:
+```bash
+nuclei -target https://example.com -as
+```
+
+This uses Wappalyzer technology detection to automatically select applicable templates.
+
+## New templates only
+
+Run only templates added in the latest release:
+
+```bash
+nuclei -target https://example.com -new-templates
+```
+
+Or run templates from a specific version:
+
+```bash
+nuclei -target https://example.com -new-templates-version v9.6.0
+```
+
+Short flags:
+```bash
+nuclei -target https://example.com -nt
+nuclei -target https://example.com -ntv v9.6.0
+```
+
+## Validation mode
+
+Validate template syntax without running scans:
+
+```bash
+nuclei -validate -templates custom-templates/
+```
+
+Disable strict syntax checking:
+
+```bash
+nuclei -validate -templates custom-templates/ -no-strict-syntax
+```
+
+Short flag:
+```bash
+nuclei -validate -t custom-templates/ -nss
+```
+
+## Advanced options
+
+### Stop at first match
+
+Stop processing a template when it first matches:
+
+```bash
+nuclei -target example.com -stop-at-first-match
+```
+
+Short flag:
+```bash
+nuclei -target example.com -spm
+```
+
+<Warning>
+  This may break template or workflow logic that depends on multiple matches.
+</Warning>
+
+### Input read timeout
+
+Set timeout for reading from input:
+
+```bash
+nuclei -list targets.txt -input-read-timeout 5m
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -irt 5m
+```
+
+### Disable HTTP probing
+
+Skip HTTP probing for non-URL inputs:
+
+```bash
+nuclei -list ips.txt -no-httpx
+```
+
+Short flag:
+```bash
+nuclei -list ips.txt -nh
+```
+
+## Practical examples
+
+### Quick security assessment
+
+```bash
+nuclei -u https://example.com \
+  -severity high,critical \
+  -silent \
+  -json-export findings.json
+```
+
+### Comprehensive network scan
+
+```bash
+nuclei -target 10.0.0.0/24 \
+  -rate-limit 100 \
+  -concurrency 50 \
+  -output results.txt \
+  -stats
+```
+
+### Resume large scan
+
+```bash
+# Initial scan
+nuclei -list 10000-targets.txt \
+  -resume large-scan.cfg \
+  -output findings.txt
+
+# Resume if interrupted
+nuclei -resume large-scan.cfg
+```
+
+### Technology detection scan
+
+```bash
+nuclei -target https://app.example.com \
+  -automatic-scan \
+  -severity medium,high,critical \
+  -json-export tech-findings.json
+```
+
+### Passive analysis
+
+```bash
+cat http-responses.txt | nuclei -passive -templates http/
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Target specification"
+    icon="bullseye"
+    href="/usage/target-specification"
+  >
+    Learn advanced target specification techniques
+  </Card>
+  <Card
+    title="Template selection"
+    icon="filter"
+    href="/usage/template-selection"
+  >
+    Master template filtering and selection
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Export results in various formats
+  </Card>
+  <Card
+    title="Rate limiting"
+    icon="gauge"
+    href="/usage/rate-limiting"
+  >
+    Control scan speed and performance
+  </Card>
+</CardGroup>

@@ -1,0 +1,494 @@
+---
+title: FAQ
+description: Frequently asked questions about Nuclei
+---
+
+Frequently asked questions about Nuclei vulnerability scanning.
+
+## General questions
+
+<AccordionGroup>
+  <Accordion title="What is Nuclei?">
+    Nuclei is a modern, high-performance vulnerability scanner built in Go that leverages YAML-based templates for customizable vulnerability detection. It supports multiple protocols (HTTP, DNS, TCP, SSL, WebSocket, WHOIS, JavaScript, Code) and is designed for zero false positives through real-world condition simulation.
+
+    Key features:
+    - Simple YAML-based template format
+    - Community-contributed templates (9,000+)
+    - Multi-protocol support
+    - Ultra-fast parallel scanning
+    - CI/CD integration
+    - Zero false positives design philosophy
+  </Accordion>
+
+  <Accordion title="Is Nuclei free to use?">
+    Yes! Nuclei is completely free and open source under the MIT license. The CLI tool and all official templates are freely available.
+
+    ProjectDiscovery also offers:
+    - **Free cloud tier**: Store findings, manage templates, and access latest templates
+    - **Pro edition**: 50x faster scans, large-scale scanning, cloud integrations
+    - **Enterprise edition**: SAML SSO, SOC 2 compliance, team workspaces, dedicated support
+
+    [View pricing](https://projectdiscovery.io/pricing)
+  </Accordion>
+
+  <Accordion title="How is Nuclei different from other scanners?">
+    **Traditional scanners:**
+    - Closed source, black-box engines
+    - Slow, often taking days for scans
+    - Vendor-driven updates (weeks/months for new CVEs)
+    - High false positive rates
+    - Expensive licensing
+
+    **Nuclei:**
+    - Open source, transparent engine
+    - Ultra-fast (can scan thousands of hosts in minutes)
+    - Community-driven updates (templates released within hours of CVE disclosure)
+    - Zero false positive design
+    - Free and open source
+    - Fully customizable via YAML templates
+  </Accordion>
+
+  <Accordion title="Who uses Nuclei?">
+    Nuclei is used by:
+    - Fortune 500 enterprises
+    - Government agencies
+    - Security researchers
+    - Bug bounty hunters
+    - Penetration testers
+    - DevSecOps teams
+    - Universities and educational institutions
+
+    Over 10,000 organizations worldwide rely on Nuclei for vulnerability detection.
+  </Accordion>
+</AccordionGroup>
+
+## Installation and setup
+
+<AccordionGroup>
+  <Accordion title="How do I install Nuclei?">
+    Nuclei requires **Go >= 1.24.2**:
+
+    ```bash
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    ```
+
+    See the [installation guide](/getting-started/install) for other methods (Docker, binary releases, package managers).
+  </Accordion>
+
+  <Accordion title="How do I update Nuclei?">
+    ```bash
+    # Update Nuclei engine
+    nuclei -update
+
+    # Update templates
+    nuclei -update-templates
+
+    # Update both
+    nuclei -update && nuclei -update-templates
+    ```
+  </Accordion>
+
+  <Accordion title="Where are templates stored?">
+    By default, templates are stored in:
+    - **Linux/macOS**: `~/nuclei-templates/`
+    - **Windows**: `%USERPROFILE%\nuclei-templates\`
+
+    You can customize this with:
+    ```bash
+    # Use custom directory
+    export NUCLEI_TEMPLATES_DIR=/custom/path
+
+    # Or specify with flag
+    nuclei -u target.com -t /custom/path/templates/
+    ```
+  </Accordion>
+
+  <Accordion title="How do I configure Nuclei?">
+    Nuclei can be configured via:
+
+    1. **Command-line flags** (highest priority)
+    2. **Environment variables**
+    3. **Configuration file**: `~/.config/nuclei/config.yaml`
+
+    ```bash
+    # Use custom config file
+    nuclei -config /path/to/config.yaml -u target.com
+    ```
+
+    See [Running Nuclei](/running/overview) for configuration details.
+  </Accordion>
+</AccordionGroup>
+
+## Usage and scanning
+
+<AccordionGroup>
+  <Accordion title="How do I run my first scan?">
+    ```bash
+    # Scan a single target
+    nuclei -u https://example.com
+
+    # Scan multiple targets from file
+    nuclei -list targets.txt
+
+    # Scan with specific templates
+    nuclei -u https://example.com -t cves/ -t exposures/
+    ```
+
+    See [Examples](/resources/examples) for more usage patterns.
+  </Accordion>
+
+  <Accordion title="How do I scan for specific vulnerabilities?">
+    ```bash
+    # Scan for specific CVE
+    nuclei -u https://example.com -t cves/2021/CVE-2021-44228.yaml
+
+    # Scan by severity
+    nuclei -u https://example.com -s critical,high
+
+    # Scan by tags
+    nuclei -u https://example.com -tags rce,sqli
+
+    # Scan by template ID
+    nuclei -u https://example.com -id CVE-2021-44228
+    ```
+  </Accordion>
+
+  <Accordion title="Can I scan networks and IP ranges?">
+    Yes! Nuclei supports network scanning:
+
+    ```bash
+    # Scan IP range
+    nuclei -target 192.168.1.0/24
+
+    # Scan specific ports
+    nuclei -target 192.168.1.0/24 -t network/ -p 80,443,8080
+
+    # Network protocols
+    nuclei -u target.com -t dns/ -t ssl/ -t network/
+    ```
+  </Accordion>
+
+  <Accordion title="How fast is Nuclei?">
+    Nuclei is highly optimized:
+    - **Request clustering**: Combines identical requests across templates
+    - **Connection pooling**: Reuses connections for multiple requests
+    - **Parallel execution**: Concurrent template execution
+    - **Template optimization**: Smart caching and compilation
+
+    Performance tuning:
+    ```bash
+    # Increase concurrency (default 25)
+    nuclei -list targets.txt -c 50
+
+    # Increase rate limit (default 150 req/sec)
+    nuclei -list targets.txt -rl 300
+
+    # Increase bulk size (default 25 hosts)
+    nuclei -list targets.txt -bs 50
+    ```
+
+    **ProjectDiscovery Cloud** offers 50x faster scans with distributed infrastructure.
+  </Accordion>
+
+  <Accordion title="Does Nuclei produce false positives?">
+    Nuclei is designed for **zero false positives**. Templates simulate real-world exploitation steps to verify vulnerabilities exist.
+
+    However:
+    - Some templates may need adjustment for specific environments
+    - Template quality varies (official templates are thoroughly reviewed)
+    - Always validate findings in your specific context
+
+    Use `-debug` to inspect requests/responses and verify matches.
+  </Accordion>
+</AccordionGroup>
+
+## Templates
+
+<AccordionGroup>
+  <Accordion title="How many templates are available?">
+    The official nuclei-templates repository contains **9,000+ templates** covering:
+    - CVEs (Common Vulnerabilities and Exposures)
+    - Misconfigurations
+    - Exposures and leaks
+    - Technology-specific checks
+    - Security best practices
+
+    Templates are continuously updated by the community.
+  </Accordion>
+
+  <Accordion title="How do I create custom templates?">
+    Templates are written in YAML:
+
+    ```yaml
+    id: example-template
+
+    info:
+      name: Example Vulnerability
+      author: username
+      severity: high
+      tags: example
+
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/vulnerable-endpoint"
+
+        matchers:
+          - type: word
+            words:
+              - "vulnerability signature"
+          - type: status
+            status:
+              - 200
+    ```
+
+    Use the [free template editor](https://cloud.projectdiscovery.io/templates) with AI assistance.
+
+    See [Template Introduction](/templates/introduction) for full syntax.
+  </Accordion>
+
+  <Accordion title="Can I contribute templates?">
+    Absolutely! Template contributions are highly encouraged.
+
+    **Community programs:**
+    - **[Pioneers](https://projectdiscovery.io/pioneers)**: Recognition for top contributors
+    - **[Bounties](https://github.com/projectdiscovery/nuclei-templates/issues?q=is%3Aissue+state%3Aopen+label%3A%22%F0%9F%92%8E+Bounty%22)**: Monetary rewards for high-quality templates
+
+    See the [Contributing Guide](/resources/contributing) for details.
+  </Accordion>
+
+  <Accordion title="How do I validate templates?">
+    ```bash
+    # Validate template syntax
+    nuclei -validate -t template.yaml
+
+    # Validate all templates in directory
+    nuclei -validate -t templates/
+
+    # Test template against target
+    nuclei -u https://target.com -t template.yaml -debug
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Integration and automation
+
+<AccordionGroup>
+  <Accordion title="Can I use Nuclei in CI/CD pipelines?">
+    Yes! Nuclei is designed for CI/CD integration.
+
+    **GitHub Actions example:**
+    ```yaml
+    - name: Run Nuclei
+      run: |
+        go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+        nuclei -u ${{ secrets.TARGET }} -s critical,high -json-export results.json
+    ```
+
+    **Exit codes:**
+    - `0`: No vulnerabilities found
+    - `1`: Vulnerabilities found (fails pipeline)
+
+    See [Use Cases](/resources/use-cases) for CI/CD integration examples.
+  </Accordion>
+
+  <Accordion title="What integrations does Nuclei support?">
+    **Issue tracking:**
+    - Jira
+    - GitHub Issues
+    - GitLab Issues
+
+    **SIEM/Logging:**
+    - Splunk
+    - Elastic
+
+    **Notifications:**
+    - Slack
+    - Discord
+    - Microsoft Teams
+    - Webhooks
+
+    **Cloud platforms:**
+    - ProjectDiscovery Cloud
+    - AWS, GCP, Azure (via Pro/Enterprise)
+
+    Configure via `-report-config` or reporting integrations.
+  </Accordion>
+
+  <Accordion title="Can I use Nuclei as a library?">
+    Yes! Nuclei can be embedded in Go applications:
+
+    ```go
+    import (
+        "github.com/projectdiscovery/nuclei/v3/lib"
+    )
+
+    // See lib/ directory for SDK examples
+    ```
+
+    Examples are available in the `lib/` and `examples/` directories.
+  </Accordion>
+</AccordionGroup>
+
+## Security and safety
+
+<AccordionGroup>
+  <Accordion title="Is it safe to run Nuclei?">
+    Nuclei is designed as a **scanning tool**, not an exploitation framework.
+
+    **Safety considerations:**
+    - Templates are designed for detection, not exploitation
+    - No destructive actions by default
+    - Templates are reviewed before acceptance
+    - Rate limiting prevents resource exhaustion
+
+    <Warning>
+    **Important:**
+    - Only scan systems you have permission to test
+    - Nuclei should NOT be run as a public service
+    - Some templates may trigger security monitoring
+    - Review templates before running on production systems
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Can I use Nuclei for bug bounties?">
+    Yes! Nuclei is popular among bug bounty hunters.
+
+    **Best practices:**
+    - Respect program scope and rules
+    - Use appropriate rate limiting
+    - Avoid DoS templates (excluded by default)
+    - Validate findings manually
+    - Report responsibly
+
+    See [Use Cases - Bug Bounty](/resources/use-cases) for examples.
+  </Accordion>
+
+  <Accordion title="Does Nuclei send data to external servers?">
+    Nuclei uses **Interactsh** for Out-of-Band (OOB) vulnerability detection. This is an optional service:
+
+    - Default: Uses public Interactsh servers (oast.pro, oast.live, etc.)
+    - No sensitive data is transmitted
+    - Only random unique identifiers are used
+    - Can be disabled with `-ni` flag
+    - Can use self-hosted Interactsh instance
+
+    ```bash
+    # Disable Interactsh
+    nuclei -u target.com -ni
+
+    # Use self-hosted instance
+    nuclei -u target.com -iserver https://custom.oast.pro
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Templates aren't finding anything">
+    See the [Troubleshooting Guide](/resources/troubleshooting) for detailed debugging steps.
+
+    Quick checks:
+    ```bash
+    # Enable debug mode
+    nuclei -u target.com -t template.yaml -debug
+
+    # Show variable values
+    nuclei -u target.com -t template.yaml -svd
+
+    # Validate template
+    nuclei -validate -t template.yaml
+    ```
+  </Accordion>
+
+  <Accordion title="Scans are very slow">
+    Optimize performance:
+    ```bash
+    # Increase concurrency and rate limit
+    nuclei -list targets.txt -c 50 -rl 300 -bs 50
+
+    # Disable httpx probing if not needed
+    nuclei -list targets.txt -nh
+
+    # Use specific templates only
+    nuclei -list targets.txt -t cves/2024/
+    ```
+
+    Consider [ProjectDiscovery Pro](https://projectdiscovery.io/pricing) for 50x faster scans.
+  </Accordion>
+
+  <Accordion title="Getting connection errors">
+    Common solutions:
+    ```bash
+    # Increase timeout
+    nuclei -u target.com -timeout 30
+
+    # Use custom DNS resolvers
+    nuclei -u target.com -r resolvers.txt
+
+    # Reduce concurrency
+    nuclei -u target.com -c 10
+    ```
+
+    See [Troubleshooting Guide](/resources/troubleshooting) for connection issues.
+  </Accordion>
+</AccordionGroup>
+
+## Community and support
+
+<AccordionGroup>
+  <Accordion title="Where can I get help?">
+    <CardGroup cols={2}>
+      <Card title="Discord" icon="discord" href="https://discord.gg/projectdiscovery">
+        Join our active community
+      </Card>
+      <Card title="GitHub" icon="github" href="https://github.com/projectdiscovery/nuclei">
+        Report issues and contribute
+      </Card>
+      <Card title="Documentation" icon="book" href="/">
+        Browse comprehensive docs
+      </Card>
+      <Card title="YouTube" icon="video" href="https://www.youtube.com/playlist?list=PLZRbR9aMzTTpItEdeNSulo8bYsvil80Rl">
+        Watch tutorial videos
+      </Card>
+    </CardGroup>
+  </Accordion>
+
+  <Accordion title="How can I contribute?">
+    Contributions are welcome!
+
+    - **Templates**: Submit new templates to nuclei-templates
+    - **Code**: Contribute to the Nuclei engine
+    - **Documentation**: Improve guides and examples
+    - **Community**: Help others on Discord/GitHub
+
+    See the [Contributing Guide](/resources/contributing) for details.
+  </Accordion>
+
+  <Accordion title="Is there enterprise support?">
+    Yes! ProjectDiscovery offers:
+
+    - **Pro**: Self-service with email support
+    - **Enterprise**: Dedicated support, SLAs, custom features
+
+    [Contact us](https://projectdiscovery.io/request-demo) for enterprise inquiries.
+  </Accordion>
+</AccordionGroup>
+
+## Still have questions?
+
+<CardGroup cols={2}>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Ask questions in real-time
+  </Card>
+  <Card title="GitHub discussions" icon="comments" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Start a discussion
+  </Card>
+  <Card title="Documentation" icon="book" href="/">
+    Explore the full docs
+  </Card>
+  <Card title="Contact sales" icon="envelope" href="https://projectdiscovery.io/request-demo">
+    Enterprise inquiries
+  </Card>
+</CardGroup>

@@ -1,0 +1,737 @@
+---
+title: Template structure details
+description: Comprehensive guide to Nuclei template components and organization
+---
+
+This guide provides an in-depth look at all components that make up a Nuclei template, from required fields to advanced configurations.
+
+## Template hierarchy
+
+A Nuclei template follows this structure:
+
+```yaml
+id: template-identifier
+
+info:
+  # Metadata block
+
+variables:
+  # Template-level variables
+
+constants:
+  # Immutable values
+
+flow: |
+  # Execution flow logic (optional)
+
+[protocol]:
+  # One or more protocol blocks
+  - # Request definition
+    matchers:
+      # Match conditions
+    extractors:
+      # Data extraction
+
+self-contained: false
+stop-at-first-match: false
+```
+
+## Required sections
+
+### Template ID
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the template across all templates.
+  
+  **Rules**:
+  - Use lowercase letters, numbers, and hyphens
+  - Start with a letter
+  - Be descriptive but concise
+  - Use CVE ID format for CVE templates: `CVE-2021-12345`
+  - Use technology prefixes: `wordpress-`, `jenkins-`, `apache-`
+  
+  **Examples**:
+  ```yaml
+  id: CVE-2021-44228
+  id: wordpress-xmlrpc-listmethods
+  id: nginx-version-detect
+  ```
+</ParamField>
+
+### Info block
+
+<ParamField path="info" type="object" required>
+  Contains all template metadata and classification information.
+</ParamField>
+
+#### Required info fields
+
+```yaml
+info:
+  name: Human-Readable Template Name
+  author: researcher1,researcher2
+  severity: critical
+```
+
+<ResponseField name="name" type="string" required>
+  **Purpose**: Describes what the template detects
+  
+  **Guidelines**:
+  - Use title case
+  - Be specific but not verbose
+  - Mention the vulnerability type
+  - Include product name if relevant
+  
+  **Examples**:
+  - "Apache Log4j Remote Code Execution"
+  - "Exposed Git Repository"
+  - "WordPress Plugin SQL Injection"
+</ResponseField>
+
+<ResponseField name="author" type="string" required>
+  **Purpose**: Credits the template creator(s)
+  
+  **Format**: Comma-separated usernames (no spaces)
+  
+  ```yaml
+  author: pdteam
+  author: researcher1,researcher2,researcher3
+  ```
+</ResponseField>
+
+<ResponseField name="severity" type="string" required>
+  **Purpose**: Indicates the risk level
+  
+  **Values**:
+  - `info` - Informational, no direct security impact
+  - `low` - Minor security issues
+  - `medium` - Moderate vulnerabilities
+  - `high` - Serious vulnerabilities
+  - `critical` - Severe, immediate risk
+  
+  ```yaml
+  severity: high
+  ```
+</ResponseField>
+
+#### Optional info fields
+
+<Tabs>
+  <Tab title="Description">
+    ```yaml
+    info:
+      description: |
+        Detailed explanation of the vulnerability,
+        its impact, and detection methodology.
+        Can be multi-line.
+    ```
+    
+    Use pipe (`|`) for multi-line descriptions.
+  </Tab>
+  
+  <Tab title="References">
+    ```yaml
+    info:
+      reference:
+        - https://nvd.nist.gov/vuln/detail/CVE-2021-12345
+        - https://blog.researcher.com/vulnerability-writeup
+        - https://github.com/project/security/advisories/1234
+    ```
+    
+    List of URLs with vulnerability details, advisories, or writeups.
+  </Tab>
+  
+  <Tab title="Tags">
+    ```yaml
+    info:
+      tags: cve,cve2021,rce,apache,log4j,critical
+    ```
+    
+    Comma-separated keywords for filtering and searching (lowercase, no spaces).
+  </Tab>
+  
+  <Tab title="Classification">
+    ```yaml
+    info:
+      classification:
+        cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+        cvss-score: 9.8
+        cve-id: CVE-2021-44228
+        cwe-id: CWE-502
+        epss-score: 0.97
+        cpe: cpe:2.3:a:apache:log4j:2.14.1:*:*:*:*:*:*:*
+    ```
+    
+    Standardized vulnerability classification data.
+  </Tab>
+  
+  <Tab title="Metadata">
+    ```yaml
+    info:
+      metadata:
+        max-request: 3
+        shodan-query: 'http.title:"Admin Panel"'
+        fofa-query: 'app="WordPress"'
+        verified: true
+    ```
+    
+    Custom key-value pairs for additional context.
+  </Tab>
+  
+  <Tab title="Remediation">
+    ```yaml
+    info:
+      remediation: |
+        1. Update to version X.Y.Z or later
+        2. Apply security patches from vendor
+        3. Implement additional security controls
+    ```
+    
+    Steps to fix or mitigate the vulnerability.
+  </Tab>
+</Tabs>
+
+## Protocol blocks
+
+Every template needs at least one protocol section defining the requests to send.
+
+### Supported protocols
+
+<CardGroup cols={3}>
+  <Card title="HTTP" icon="globe" href="/templates/protocols/http">
+    Web application testing
+  </Card>
+  <Card title="DNS" icon="network-wired" href="/templates/protocols/dns">
+    DNS queries and zone enumeration
+  </Card>
+  <Card title="Network/TCP" icon="server" href="/templates/protocols/network">
+    Raw TCP connections
+  </Card>
+  <Card title="SSL/TLS" icon="lock" href="/templates/protocols/ssl">
+    Certificate and SSL checks
+  </Card>
+  <Card title="WebSocket" icon="plug" href="/templates/protocols/websocket">
+    WebSocket connections
+  </Card>
+  <Card title="WHOIS" icon="address-card" href="/templates/protocols/whois">
+    Domain registration data
+  </Card>
+  <Card title="JavaScript" icon="js" href="/templates/protocols/javascript">
+    Custom protocol logic
+  </Card>
+  <Card title="Code" icon="code" href="/templates/protocols/code">
+    Execute code snippets
+  </Card>
+  <Card title="File" icon="file" href="/templates/protocols/file">
+    Local file system scanning
+  </Card>
+</CardGroup>
+
+### Basic protocol structure
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/path"
+    
+    matchers:
+      - type: word
+        words:
+          - "success"
+```
+
+Each protocol can have multiple requests:
+
+```yaml
+http:
+  - # Request 1
+    method: GET
+    path:
+      - "{{BaseURL}}/api/v1"
+  
+  - # Request 2
+    method: POST
+    path:
+      - "{{BaseURL}}/api/v2"
+```
+
+## Variables and constants
+
+### Variables
+
+<ParamField path="variables" type="object">
+  Define dynamic values that can use DSL functions and are evaluated at runtime.
+  
+  ```yaml
+  variables:
+    random_id: "{{rand_int(100000, 999999)}}"
+    encoded_host: "{{base64(Host)}}"
+    timestamp: "{{unix_time()}}"
+  ```
+  
+  Use in requests:
+  ```yaml
+  http:
+    - path:
+        - "{{BaseURL}}/api?id={{random_id}}"
+  ```
+</ParamField>
+
+### Constants
+
+<ParamField path="constants" type="object">
+  Define static values that never change.
+  
+  ```yaml
+  constants:
+    api_version: "v1"
+    default_user: "admin"
+    max_retries: 3
+  ```
+</ParamField>
+
+## Matchers
+
+Define conditions that must be met for a template to report a match.
+
+### Matcher types
+
+<Tabs>
+  <Tab title="Word">
+    ```yaml
+    matchers:
+      - type: word
+        words:
+          - "admin panel"
+          - "dashboard"
+        condition: or
+        part: body
+    ```
+    
+    Searches for exact strings in the response.
+  </Tab>
+  
+  <Tab title="Regex">
+    ```yaml
+    matchers:
+      - type: regex
+        regex:
+          - "([a-zA-Z0-9_-]+\.)*example\.com"
+        part: body
+    ```
+    
+    Uses regular expressions for pattern matching.
+  </Tab>
+  
+  <Tab title="Status">
+    ```yaml
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 301
+          - 302
+    ```
+    
+    Matches HTTP status codes.
+  </Tab>
+  
+  <Tab title="Size">
+    ```yaml
+    matchers:
+      - type: size
+        size:
+          - 1234
+          - 5678
+    ```
+    
+    Matches response body size in bytes.
+  </Tab>
+  
+  <Tab title="DSL">
+    ```yaml
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+          - "contains(body, 'admin')"
+          - "len(body) > 1000"
+        condition: and
+    ```
+    
+    Uses Nuclei's DSL for complex logic.
+  </Tab>
+  
+  <Tab title="Binary">
+    ```yaml
+    matchers:
+      - type: binary
+        binary:
+          - "504B0304"  # ZIP header
+          - "89504E47"  # PNG header
+        part: body
+    ```
+    
+    Matches binary patterns (hex encoded).
+  </Tab>
+</Tabs>
+
+### Matcher conditions
+
+```yaml
+matchers-condition: and  # ALL matchers must match
+matchers:
+  - type: status
+    status:
+      - 200
+  - type: word
+    words:
+      - "vulnerable"
+```
+
+```yaml
+matchers-condition: or  # ANY matcher can match (default)
+matchers:
+  - type: word
+    words:
+      - "admin"
+  - type: word
+    words:
+      - "administrator"
+```
+
+## Extractors
+
+Extract data from responses for reporting or use in subsequent requests.
+
+### Extractor types
+
+<Tabs>
+  <Tab title="Regex">
+    ```yaml
+    extractors:
+      - type: regex
+        name: api_key
+        regex:
+          - 'api[_-]?key["\']?\s*[:=]\s*["\']?([a-zA-Z0-9-_]+)'
+        group: 1
+    ```
+    
+    Extract using regular expression groups.
+  </Tab>
+  
+  <Tab title="KVal">
+    ```yaml
+    extractors:
+      - type: kval
+        kval:
+          - "Set-Cookie"
+          - "Authorization"
+    ```
+    
+    Extract header values by key name.
+  </Tab>
+  
+  <Tab title="JSON">
+    ```yaml
+    extractors:
+      - type: json
+        json:
+          - ".data.token"
+          - ".user.id"
+    ```
+    
+    Extract from JSON responses using JSON path.
+  </Tab>
+  
+  <Tab title="XPath">
+    ```yaml
+    extractors:
+      - type: xpath
+        xpath:
+          - "/html/head/title"
+          - "//input[@type='hidden']/@value"
+    ```
+    
+    Extract from HTML/XML using XPath.
+  </Tab>
+  
+  <Tab title="DSL">
+    ```yaml
+    extractors:
+      - type: dsl
+        dsl:
+          - "to_lower(body)"
+          - "len(all_headers)"
+    ```
+    
+    Extract computed values using DSL.
+  </Tab>
+</Tabs>
+
+### Internal extractors
+
+```yaml
+extractors:
+  - type: regex
+    name: csrf_token
+    internal: true  # Don't show in output
+    regex:
+      - 'csrf_token"\s*value="([^"]+)"'
+    group: 1
+```
+
+Use in subsequent request:
+
+```yaml
+http:
+  - # Request 1 - extract token
+    method: GET
+    path:
+      - "{{BaseURL}}/login"
+    extractors:
+      - type: regex
+        name: csrf_token
+        internal: true
+        regex:
+          - 'name="csrf_token" value="([^"]+)"'
+        group: 1
+  
+  - # Request 2 - use token
+    method: POST
+    path:
+      - "{{BaseURL}}/login"
+    body: "username=admin&password=test&csrf_token={{csrf_token}}"
+```
+
+## Global options
+
+### Self-contained
+
+<ParamField path="self-contained" type="boolean" default={false}>
+  Template doesn't require external input; URLs are included in the template.
+  
+  ```yaml
+  id: specific-target-check
+  
+  self-contained: true
+  
+  http:
+    - raw:
+        - |
+          GET http://specific-target.com/api HTTP/1.1
+          Host: specific-target.com
+  ```
+</ParamField>
+
+### Stop at first match
+
+<ParamField path="stop-at-first-match" type="boolean" default={false}>
+  Stop template execution after first successful match.
+  
+  ```yaml
+  stop-at-first-match: true
+  
+  http:
+    - path:
+        - "{{BaseURL}}/admin"
+        - "{{BaseURL}}/administrator"
+        - "{{BaseURL}}/wp-admin"
+  ```
+  
+  Stops after finding the first accessible admin panel.
+</ParamField>
+
+### Flow control
+
+<ParamField path="flow" type="string">
+  Advanced execution control using JavaScript-like syntax.
+  
+  ```yaml
+  flow: |
+    http("probe");
+    if (template["probe_status"] == true) {
+      http("exploit");
+    }
+  ```
+  
+  See [Flow Control](/templates/flow-control) for details.
+</ParamField>
+
+## Multi-protocol templates
+
+Combine multiple protocols in one template:
+
+```yaml
+id: multi-protocol-check
+
+info:
+  name: DNS and HTTP Combined Check
+  author: researcher
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+    matchers:
+      - type: word
+        words:
+          - "IN\tA"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+## Request chaining
+
+Pass data between requests:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/session"
+    extractors:
+      - type: json
+        name: session_id
+        internal: true
+        json:
+          - ".session.id"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      X-Session-ID: "{{session_id}}"
+    matchers:
+      - type: word
+        words:
+          - "authenticated"
+```
+
+## Part definitions
+
+Each protocol exposes different parts for matching/extraction:
+
+### HTTP parts
+
+- `body` - Response body (default)
+- `header` - Response headers
+- `all` - Headers + body
+- `status_code` - HTTP status code
+- `content_length` - Response length
+- `raw` - Complete raw response
+
+### DNS parts
+
+- `raw` - Full DNS response (default)
+- `answer` - Answer section
+- `question` - Question section
+- `ns` - Nameserver section
+- `extra` - Additional section
+
+### Network parts
+
+- `data` - Received data (default)
+- `raw` - Complete interaction
+- `request` - Sent request
+
+## Template examples
+
+<CodeGroup>
+```yaml Basic Detection
+id: admin-panel-detect
+
+info:
+  name: Admin Panel Detection
+  author: researcher
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    
+    matchers:
+      - type: word
+        words:
+          - "admin panel"
+          - "administrator"
+        condition: or
+```
+
+```yaml With Extraction
+id: version-disclosure
+
+info:
+  name: Version Number Disclosure
+  author: researcher
+  severity: low
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    extractors:
+      - type: regex
+        name: version
+        regex:
+          - 'Version\s+([0-9.]+)'
+        group: 1
+```
+
+```yaml Multi-Step
+id: authentication-bypass
+
+info:
+  name: Authentication Bypass
+  author: researcher
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/login"
+    extractors:
+      - type: regex
+        name: token
+        internal: true
+        regex:
+          - 'token"\s*value="([^"]+)"'
+        group: 1
+  
+  - method: POST
+    path:
+      - "{{BaseURL}}/login"
+    body: "token={{token}}&user=admin"
+    matchers:
+      - type: word
+        words:
+          - "Welcome, admin"
+```
+</CodeGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Protocol guides" icon="book" href="/templates/protocols/http">
+    Deep dive into specific protocols
+  </Card>
+  <Card title="Matchers reference" icon="filter" href="/templates/matchers">
+    Complete matcher documentation
+  </Card>
+  <Card title="Extractors reference" icon="scissors" href="/templates/extractors">
+    All extractor types explained
+  </Card>
+  <Card title="Helper functions" icon="function" href="/templates/helper-functions">
+    DSL function reference
+  </Card>
+</CardGroup>

@@ -1,0 +1,524 @@
+---
+title: Template validation
+description: Validate Nuclei templates for syntax errors and best practices compliance
+---
+
+Template validation ensures your Nuclei templates follow correct syntax and include all required fields. Nuclei provides built-in validation tools to catch errors before runtime.
+
+## Why validate templates?
+
+Validation catches common issues:
+
+<CardGroup cols={2}>
+  <Card title="Syntax errors" icon="code">
+    YAML formatting issues, indentation problems, and invalid field types
+  </Card>
+  <Card title="Missing fields" icon="exclamation-triangle">
+    Required metadata like `id`, `name`, and `author`
+  </Card>
+  <Card title="Invalid values" icon="xmark-circle">
+    Incorrect severity levels, malformed regex patterns, or invalid protocol configurations
+  </Card>
+  <Card title="Structural issues" icon="sitemap">
+    Conflicting protocol declarations or incorrect field combinations
+  </Card>
+</CardGroup>
+
+## Validation methods
+
+### Command-line validation
+
+The primary way to validate templates is using the `-validate` flag:
+
+```bash
+nuclei -validate -t template.yaml
+```
+
+<Tabs>
+  <Tab title="Single template">
+    Validate a specific template file:
+    
+    ```bash
+    nuclei -validate -t git-config-exposure.yaml
+    ```
+    
+    Successful output:
+    ```
+    [INF] Templates validation completed.
+    ```
+  </Tab>
+  
+  <Tab title="Directory">
+    Validate all templates in a directory:
+    
+    ```bash
+    nuclei -validate -t ./custom-templates/
+    ```
+  </Tab>
+  
+  <Tab title="Multiple templates">
+    Validate specific templates:
+    
+    ```bash
+    nuclei -validate -t template1.yaml,template2.yaml
+    ```
+  </Tab>
+</Tabs>
+
+### Build-time validation
+
+For development, use the Makefile target:
+
+```bash
+make template-validate
+```
+
+<Note>
+  This builds the nuclei binary and validates templates as shown in `CONTRIBUTING.md` and `CLAUDE.md`.
+</Note>
+
+## Validation rules
+
+### Mandatory field validation
+
+Templates must include specific required fields. The validation logic in `pkg/templates/parser_validate.go:13-37` enforces:
+
+<Steps>
+  <Step title="Template ID">
+    Must be present and match the pattern `^([a-zA-Z0-9]+[-_])*[a-zA-Z0-9]+$`:
+    
+    ```yaml
+    id: valid-template-id  # Good
+    ```
+    
+    <Warning>
+      Invalid IDs will cause validation to fail:
+      ```yaml
+      id: Invalid Template ID  # Bad - contains spaces
+      id: template.with.dots    # Bad - contains dots
+      ```
+    </Warning>
+  </Step>
+  
+  <Step title="Template name">
+    The `info.name` field cannot be blank:
+    
+    ```yaml
+    info:
+      name: Descriptive Template Name
+    ```
+  </Step>
+  
+  <Step title="Author information">
+    At least one author must be specified:
+    
+    ```yaml
+    info:
+      author: pdteam
+      # or
+      author:
+        - author1
+        - author2
+    ```
+  </Step>
+</Steps>
+
+### Optional field warnings
+
+Some fields trigger warnings when missing (from `pkg/templates/parser_validate.go:49-65`):
+
+```yaml
+info:
+  name: Template Name
+  author: pdteam
+  severity: medium  # Warning if missing (except for workflows)
+```
+
+<Tip>
+  Warnings don't prevent template execution but indicate fields you should include for completeness.
+</Tip>
+
+### YAML syntax validation
+
+Nuclei supports both strict and non-strict YAML parsing:
+
+<Tabs>
+  <Tab title="Strict mode (default)">
+    Strict mode rejects unknown fields and requires exact syntax:
+    
+    ```go
+    // From pkg/templates/parser.go:172-174
+    if !p.NoStrictSyntax {
+        err = yaml.UnmarshalStrict(data, template)
+    }
+    ```
+    
+    This catches typos and invalid fields:
+    ```yaml
+    http:
+      - method: GET
+        pth: "{{BaseURL}}"  # Error: unknown field 'pth'
+    ```
+  </Tab>
+  
+  <Tab title="Non-strict mode">
+    Disable strict syntax checking for legacy templates:
+    
+    ```bash
+    nuclei -no-strict-syntax -t template.yaml
+    ```
+    
+    <Warning>
+      Non-strict mode may hide configuration errors. Use only for legacy templates.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Validation errors
+
+### Common error messages
+
+<AccordionGroup>
+  <Accordion title="mandatory field is missing">
+    **Error message**:
+    ```
+    mandatory 'name' field is missing
+    mandatory 'author' field is missing
+    mandatory 'id' field is missing
+    ```
+    
+    **Cause**: Required metadata fields are not present.
+    
+    **Solution**: Add the missing fields to the `info` section:
+    ```yaml
+    id: template-id
+    
+    info:
+      name: Template Name
+      author: your-username
+    ```
+  </Accordion>
+  
+  <Accordion title="invalid field format for 'id'">
+    **Error message**:
+    ```
+    invalid field format for 'id' (allowed format is ^([a-zA-Z0-9]+[-_])*[a-zA-Z0-9]+$)
+    ```
+    
+    **Cause**: Template ID contains invalid characters or format.
+    
+    **Solution**: Use only lowercase letters, numbers, hyphens, and underscores:
+    ```yaml
+    id: valid-template-name
+    # Not: Invalid Template Name
+    ```
+  </Accordion>
+  
+  <Accordion title="failed to parse PEM block">
+    **Error message**:
+    ```
+    Could not load template: failed to parse template
+    ```
+    
+    **Cause**: YAML indentation errors or invalid structure.
+    
+    **Solution**: Check indentation (use 2 spaces, no tabs):
+    ```yaml
+    http:
+      - method: GET  # 2 spaces
+        path:        # 4 spaces
+          - "{{BaseURL}}"  # 6 spaces
+    ```
+  </Accordion>
+  
+  <Accordion title="use http or requests, both are not supported">
+    **Error message**:
+    ```
+    use http or requests, both are not supported
+    ```
+    
+    **Cause**: Template uses both deprecated `requests` and new `http` fields.
+    
+    **Solution**: Use only `http` (from `pkg/templates/templates.go:362-364`):
+    ```yaml
+    http:  # Use this
+      - method: GET
+    
+    # Not both:
+    # requests:
+    # http:
+    ```
+  </Accordion>
+  
+  <Accordion title="unknown field">
+    **Error message**:
+    ```
+    yaml: unmarshal errors:
+      line 10: field headers not found in type http.Request
+    ```
+    
+    **Cause**: Misspelled field name or incorrect indentation.
+    
+    **Solution**: Check field spelling and indentation:
+    ```yaml
+    http:
+      - method: GET
+        headers:  # Correct spelling and indentation
+          User-Agent: "Scanner"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Debugging validation failures
+
+When validation fails:
+
+<Steps>
+  <Step title="Check YAML syntax">
+    Use a YAML validator to check basic syntax:
+    
+    ```bash
+    # Using Python
+    python -c 'import yaml; yaml.safe_load(open("template.yaml"))'
+    
+    # Using yq
+    yq eval template.yaml
+    ```
+  </Step>
+  
+  <Step title="Verify indentation">
+    Ensure consistent 2-space indentation throughout:
+    
+    ```bash
+    # Check for tabs
+    grep -P '\t' template.yaml
+    ```
+  </Step>
+  
+  <Step title="Compare with working examples">
+    Reference templates from the integration tests:
+    
+    ```bash
+    # View example templates
+    ls integration_tests/protocols/http/*.yaml
+    ```
+  </Step>
+  
+  <Step title="Use debug output">
+    Run with debug flag for detailed error information:
+    
+    ```bash
+    nuclei -validate -t template.yaml -debug
+    ```
+  </Step>
+</Steps>
+
+## Parser configuration
+
+The template parser can be configured programmatically (from `pkg/templates/parser.go:21-54`):
+
+```go
+parser := templates.NewParser()
+parser.ShouldValidate = true     // Enable validation
+parser.NoStrictSyntax = false    // Use strict YAML parsing
+
+// Validate template
+template, err := parser.ParseTemplate(templatePath, catalog)
+if err != nil {
+    // Handle validation error
+}
+```
+
+### Validation statistics
+
+Nuclei tracks validation statistics internally:
+
+- **SyntaxErrorStats**: Count of templates with syntax errors
+- **SyntaxWarningStats**: Count of templates with warnings
+
+These are incremented during validation in `pkg/templates/parser.go:107-120`.
+
+## Template format support
+
+Nuclei supports multiple template formats:
+
+<Tabs>
+  <Tab title="YAML (recommended)">
+    Standard format with preprocessing support:
+    
+    ```yaml
+    id: example-template
+    
+    info:
+      name: Example Template
+      author: pdteam
+      severity: info
+    
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+    ```
+  </Tab>
+  
+  <Tab title="JSON">
+    Alternative format (less common):
+    
+    ```json
+    {
+      "id": "example-template",
+      "info": {
+        "name": "Example Template",
+        "author": "pdteam",
+        "severity": "info"
+      },
+      "http": [
+        {
+          "method": "GET",
+          "path": ["{{BaseURL}}"]
+        }
+      ]
+    }
+    ```
+    
+    <Note>
+      JSON format is detected automatically but YAML is preferred for readability.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Validation best practices
+
+### Pre-commit validation
+
+Integrate validation into your development workflow:
+
+```bash
+# Create pre-commit hook
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+nuclei -validate -t ./templates/
+if [ $? -ne 0 ]; then
+    echo "Template validation failed"
+    exit 1
+fi
+EOF
+
+chmod +x .git/hooks/pre-commit
+```
+
+### CI/CD integration
+
+Add validation to your CI pipeline:
+
+```yaml .github/workflows/validate.yml
+name: Validate Templates
+
+on: [push, pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Nuclei
+        run: |
+          go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+      
+      - name: Validate Templates
+        run: |
+          nuclei -validate -t ./templates/
+```
+
+### Editor integration
+
+Use editor plugins for real-time validation:
+
+<CardGroup cols={2}>
+  <Card title="VS Code" icon="code">
+    Install YAML extension for syntax highlighting and validation
+  </Card>
+  <Card title="IntelliJ/PyCharm" icon="code">
+    Built-in YAML support with schema validation
+  </Card>
+</CardGroup>
+
+## Validation workflow
+
+Recommended workflow for template development:
+
+<Steps>
+  <Step title="Write template">
+    Create your template using proper syntax and structure
+  </Step>
+  
+  <Step title="Validate syntax">
+    Run validation to catch errors:
+    ```bash
+    nuclei -validate -t template.yaml
+    ```
+  </Step>
+  
+  <Step title="Fix errors">
+    Address any validation errors or warnings
+  </Step>
+  
+  <Step title="Test functionality">
+    Run against test targets:
+    ```bash
+    nuclei -t template.yaml -u http://test-target
+    ```
+  </Step>
+  
+  <Step title="Re-validate">
+    Final validation before committing:
+    ```bash
+    nuclei -validate -t template.yaml
+    ```
+  </Step>
+</Steps>
+
+## Template loading errors
+
+Validation can catch issues during template loading:
+
+```go
+// From pkg/templates/parser.go:85-126
+func (p *Parser) LoadTemplate(templatePath string) (bool, error) {
+    // Parsing
+    template, err := p.ParseTemplate(templatePath, catalog)
+    
+    // Mandatory field validation
+    validationError := validateTemplateMandatoryFields(template)
+    if validationError != nil {
+        return false, validationError
+    }
+    
+    // Optional field warnings
+    validationWarning := validateTemplateOptionalFields(template)
+    
+    return true, nil
+}
+```
+
+<Warning>
+  Mandatory field validation failures prevent template execution, while optional field warnings allow execution with logged warnings.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Template signing" icon="signature" href="/templates/signing">
+    Learn about signing templates for security
+  </Card>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Follow guidelines for high-quality templates
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/templates/contributing">
+    Submit validated templates to the community
+  </Card>
+  <Card title="Template structure" icon="sitemap" href="/templates/template-structure">
+    Understand template components in detail
+  </Card>
+</CardGroup>

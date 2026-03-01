@@ -1,0 +1,502 @@
+---
+title: Variables
+description: Dynamic values and template context in Nuclei
+---
+
+Variables in Nuclei allow you to define reusable values, perform computations, and create dynamic template behavior. They can be defined at the template level, extracted from responses, or computed using DSL helper functions.
+
+## Variable types
+
+Nuclei supports three types of variables:
+
+### Template variables
+
+Defined at the template level and available to all requests:
+
+```yaml
+id: variables-example
+
+info:
+  name: Variables Example
+  author: pdteam
+  severity: info
+
+variables:
+  a1: "value"
+  a2: "{{base64('{{Host}}')}}"
+  port: 8080
+
+http:
+  - raw:
+      - |
+        GET / HTTP/1.1
+        Host: {{Hostname}}:{{port}}
+        Test: {{a1}}
+        Another: {{a2}}
+```
+
+### Extracted variables
+
+Extracted from responses using extractors and available in subsequent requests:
+
+```yaml
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/login"
+    body: "username=admin&password=test"
+    
+    extractors:
+      - type: regex
+        name: token
+        internal: true
+        regex:
+          - "token=([a-zA-Z0-9]+)"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/data"
+    headers:
+      Authorization: "Bearer {{token}}"
+```
+
+### Dynamic variables
+
+Generated at runtime using payloads or helper functions:
+
+```yaml
+http:
+  - path:
+      - "{{BaseURL}}/user/{{username}}"
+    payloads:
+      username:
+        - admin
+        - test
+        - guest
+```
+
+## Built-in variables
+
+Nuclei provides several built-in variables for common use cases:
+
+<ParamField path="{{BaseURL}}" type="string">
+  The input URL including protocol and port.
+  
+  Example: `https://example.com:443`
+</ParamField>
+
+<ParamField path="{{Hostname}}" type="string">
+  The hostname from the input URL.
+  
+  Example: `example.com`
+</ParamField>
+
+<ParamField path="{{Host}}" type="string">
+  Alias for `{{Hostname}}`.
+</ParamField>
+
+<ParamField path="{{Port}}" type="string">
+  The port from the input URL.
+  
+  Example: `443`
+</ParamField>
+
+<ParamField path="{{Path}}" type="string">
+  The path from the input URL.
+  
+  Example: `/api/v1/users`
+</ParamField>
+
+<ParamField path="{{RootURL}}" type="string">
+  The root URL without path.
+  
+  Example: `https://example.com`
+</ParamField>
+
+<ParamField path="{{Scheme}}" type="string">
+  The URL scheme (http/https).
+  
+  Example: `https`
+</ParamField>
+
+<ParamField path="{{FQDN}}" type="string">
+  Fully Qualified Domain Name.
+  
+  Example: `www.example.com`
+</ParamField>
+
+<ParamField path="{{interactsh-url}}" type="string">
+  Generates a unique Interactsh URL for OOB testing.
+  
+  Example: `c59p8k2a0000kg8a0000hg.oast.fun`
+</ParamField>
+
+## Using variables in requests
+
+<Tabs>
+  <Tab title="HTTP Headers">
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/api"
+        headers:
+          X-API-Key: "{{api_key}}"
+          User-Agent: "Scanner/{{version}}"
+    ```
+  </Tab>
+  
+  <Tab title="Request Body">
+    ```yaml
+    http:
+      - method: POST
+        path:
+          - "{{BaseURL}}/api/login"
+        body: |
+          {
+            "username": "{{username}}",
+            "password": "{{password}}"
+          }
+    ```
+  </Tab>
+  
+  <Tab title="URL Path">
+    ```yaml
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/user/{{user_id}}"
+          - "{{BaseURL}}/{{path}}/config"
+    ```
+  </Tab>
+  
+  <Tab title="DNS Queries">
+    ```yaml
+    dns:
+      - name: "{{subdomain}}.{{FQDN}}"
+        type: A
+    ```
+  </Tab>
+</Tabs>
+
+## Variable scope
+
+Variables have different scopes depending on where they're defined:
+
+### Global scope
+
+```yaml
+variables:
+  global_var: "value"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/{{global_var}}"  # Available in all requests
+```
+
+### Request scope
+
+Extracted variables are available in subsequent requests:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/step1"
+    extractors:
+      - type: regex
+        name: request_var
+        internal: true
+        regex:
+          - "id=([0-9]+)"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/step2?id={{request_var}}"  # Available after extraction
+```
+
+## Computing variables
+
+Use DSL helper functions to compute values:
+
+```yaml
+variables:
+  encoded_host: "{{base64(Host)}}"
+  current_time: "{{unixtime()}}"
+  random_string: "{{randstr(16)}}"
+  md5_hash: "{{md5(Host)}}"
+```
+
+<Note>
+  Variables support nested helper functions: `{{base64(to_lower(Host))}}`
+</Note>
+
+## Payloads as variables
+
+Payloads create variables that iterate over values:
+
+<CodeGroup>
+```yaml Single Payload
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/{{endpoint}}"
+    
+    payloads:
+      endpoint:
+        - users
+        - posts
+        - comments
+```
+
+```yaml Multiple Payloads (Clusterbomb)
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/login"
+    body: "username={{user}}&password={{pass}}"
+    attack: clusterbomb
+    
+    payloads:
+      user:
+        - admin
+        - root
+      pass:
+        - password
+        - 123456
+```
+
+```yaml Payload from File
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/{{path}}"
+    
+    payloads:
+      path: payloads/paths.txt
+```
+</CodeGroup>
+
+## Constants
+
+Constants are scalar values that don't support helper functions:
+
+```yaml
+constants:
+  API_VERSION: "v1"
+  MAX_RETRIES: 3
+  TIMEOUT: 30
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/{{API_VERSION}}/data"
+```
+
+## Flow variables
+
+In flow-based templates, use JavaScript to manipulate variables:
+
+```yaml
+flow: |
+  // Set variables
+  set("custom_var", "value");
+  
+  // Get variables from template context
+  let emails = template["emails"];
+  
+  // Iterate and set
+  for (let email of emails) {
+    set("current_email", email);
+    http(2);
+  }
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    extractors:
+      - type: regex
+        name: emails
+        internal: true
+        regex:
+          - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/user?email={{current_email}}"
+```
+
+## Real-world examples
+
+<CodeGroup>
+```yaml Multi-Step Authentication
+id: auth-flow
+
+info:
+  name: Multi-Step Auth Flow
+  author: pdteam
+  severity: info
+
+variables:
+  username: "admin"
+  password: "test123"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/csrf"
+    extractors:
+      - type: regex
+        name: csrf_token
+        internal: true
+        regex:
+          - 'csrf_token"\\s*value="([^"]+)'
+  
+  - method: POST
+    path:
+      - "{{BaseURL}}/login"
+    body: |
+      username={{username}}&password={{password}}&csrf={{csrf_token}}
+    extractors:
+      - type: kval
+        name: session_id
+        internal: true
+        kval:
+          - sessionid
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin/panel"
+    headers:
+      Cookie: "sessionid={{session_id}}"
+```
+
+```yaml Dynamic Subdomain Enumeration
+id: subdomain-enum
+
+info:
+  name: Subdomain Enumeration
+  author: pdteam
+  severity: info
+
+variables:
+  base_domain: "{{Host}}"
+
+http:
+  - method: GET
+    path:
+      - "https://{{subdomain}}.{{base_domain}}"
+    
+    payloads:
+      subdomain:
+        - www
+        - api
+        - dev
+        - staging
+        - admin
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 403
+```
+
+```yaml API Version Testing
+id: api-version-test
+
+info:
+  name: API Version Discovery
+  author: pdteam
+  severity: info
+
+variables:
+  api_base: "/api"
+  endpoint: "/users"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}{{api_base}}/v{{version}}{{endpoint}}"
+    
+    payloads:
+      version:
+        - 1
+        - 2
+        - 3
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+</CodeGroup>
+
+## Variable precedence
+
+When multiple variables have the same name, Nuclei follows this precedence (highest to lowest):
+
+1. Flow-set variables (`set()` function)
+2. Extracted variables (from extractors)
+3. Payload variables
+4. Template variables
+5. Built-in variables
+
+## Best practices
+
+1. **Use descriptive names** - Choose clear, self-documenting variable names
+2. **Minimize global variables** - Keep variables scoped to where they're needed
+3. **Extract only what's needed** - Don't extract large amounts of unnecessary data
+4. **Use internal extractors** - Mark intermediate values as internal
+5. **Validate variable formats** - Use matchers to verify extracted data
+6. **Document complex variables** - Add comments for computed or transformed values
+7. **Avoid name collisions** - Don't reuse built-in variable names
+
+## Common patterns
+
+### Conditional variables
+
+```yaml
+variables:
+  port: "{{Port}}"
+  scheme: "{{Scheme}}"
+  target: "{{scheme}}://{{Host}}:{{port}}"
+```
+
+### Timestamp-based variables
+
+```yaml
+variables:
+  timestamp: "{{unixtime()}}"
+  nonce: "{{randstr(16)}}"
+  signature: "{{md5(timestamp + nonce)}}"
+```
+
+### Encoded variables
+
+```yaml
+variables:
+  payload: "<script>alert(1)</script>"
+  url_encoded: "{{urlencode(payload)}}"
+  base64_encoded: "{{base64(payload)}}"
+  html_encoded: "{{html_escape(payload)}}"
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Extractors" icon="filter" href="/templates/extractors">
+    Extract data from responses
+  </Card>
+  <Card title="Helper Functions" icon="function" href="/templates/helper-functions">
+    DSL helper functions
+  </Card>
+  <Card title="Flow Control" icon="code-branch" href="/templates/flow-control">
+    JavaScript-based flow
+  </Card>
+  <Card title="Payloads" icon="list" href="/templates/payloads">
+    Payload configuration
+  </Card>
+</CardGroup>

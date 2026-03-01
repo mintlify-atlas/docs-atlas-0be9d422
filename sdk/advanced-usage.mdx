@@ -1,0 +1,517 @@
+---
+title: Advanced usage
+description: Master advanced patterns and optimizations for the Nuclei SDK
+---
+
+This guide covers advanced techniques for using the Nuclei SDK efficiently and effectively.
+
+## Thread-safe concurrent scanning
+
+The `ThreadSafeNucleiEngine` allows running multiple scans concurrently with goroutines:
+
+```go
+import (
+	"context"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+	"github.com/projectdiscovery/nuclei/v3/pkg/installer"
+	syncutil "github.com/projectdiscovery/utils/sync"
+)
+
+func main() {
+	ctx := context.Background()
+	
+	// Pre-install templates for concurrent usage
+	tm := installer.TemplateManager{}
+	if err := tm.FreshInstallIfNotExists(); err != nil {
+		panic(err)
+	}
+
+	// Create thread-safe engine
+	ne, err := nuclei.NewThreadSafeNucleiEngineCtx(ctx)
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+
+	// Use sized waitgroup for concurrency control
+	sg, err := syncutil.New(syncutil.WithSize(10))
+	if err != nil {
+		panic(err)
+	}
+
+	// Scan 1: DNS templates
+	sg.Add()
+	go func() {
+		defer sg.Done()
+		err = ne.ExecuteNucleiWithOpts(
+			[]string{"scanme.sh"},
+			nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+				ProtocolTypes: "dns",
+			}),
+			nuclei.WithHeaders([]string{"X-Bug-Bounty: pdteam"}),
+			nuclei.EnablePassiveMode(),
+		)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// Scan 2: OAST templates
+	sg.Add()
+	go func() {
+		defer sg.Done()
+		err = ne.ExecuteNucleiWithOpts(
+			[]string{"http://honey.scanme.sh"},
+			nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+				Tags: []string{"oast"},
+			}),
+		)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// Wait for all scans to finish
+	sg.Wait()
+}
+```
+
+<Note>
+  `ThreadSafeNucleiEngine` does not support all options. Methods like `EnableStatsWithOpts`, `WithVerbosity`, and `UseOutputWriter` will return `ErrOptionsNotSupported` when used after initialization.
+</Note>
+
+## Dynamic speed control
+
+Adjust scanning speed dynamically during execution:
+
+```go
+import (
+	"context"
+	"time"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+)
+
+func main() {
+	ne, err := nuclei.NewNucleiEngineCtx(
+		context.TODO(),
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+			Tags: []string{"oast"},
+		}),
+		nuclei.WithGlobalRateLimit(1, time.Second),
+		nuclei.WithConcurrency(nuclei.Concurrency{
+			TemplateConcurrency:           1,
+			HostConcurrency:               1,
+			HeadlessHostConcurrency:       1,
+			HeadlessTemplateConcurrency:   1,
+			JavascriptTemplateConcurrency: 1,
+			TemplatePayloadConcurrency:    1,
+			ProbeConcurrency:              1,
+		}),
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+
+	ne.LoadTargets([]string{"http://honey.scanme.sh"}, false)
+
+	// Start scan in background
+	go func() {
+		err := ne.ExecuteWithCallback(nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	// Wait and then increase rate limit
+	time.Sleep(5 * time.Second)
+	ne.Options().RateLimit = 5000
+
+	// Wait and then increase concurrency
+	time.Sleep(5 * time.Second)
+	ne.Options().TemplateThreads = 25
+	ne.Options().BulkSize = 25
+
+	time.Sleep(30 * time.Second)
+}
+```
+
+## Custom template loading
+
+### Load specific templates
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplatesOrWorkflows(nuclei.TemplateSources{
+		Templates: []string{
+			"/path/to/template1.yaml",
+			"/path/to/templates/directory",
+		},
+		Workflows: []string{
+			"/path/to/workflow.yaml",
+		},
+	}),
+)
+```
+
+### Load remote templates
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplatesOrWorkflows(nuclei.TemplateSources{
+		RemoteTemplates: []string{
+			"https://example.com/template.yaml",
+		},
+		TrustedDomains: []string{
+			"example.com",
+		},
+	}),
+)
+```
+
+## Template parsing and signing
+
+### Parse templates
+
+```go
+templateData := []byte(`
+id: custom-template
+info:
+  name: Custom Template
+  severity: high
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+`)
+
+tmpl, err := ne.ParseTemplate(templateData)
+if err != nil {
+	panic(err)
+}
+
+fmt.Printf("Template verified: %v\n", tmpl.Verified)
+```
+
+### Sign templates
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/templates/signer"
+
+// Create signer
+tmplSigner := &signer.TemplateSigner{}
+
+// Sign template
+signedData, err := ne.SignTemplate(tmplSigner, templateData)
+if err != nil {
+	panic(err)
+}
+```
+
+## Advanced filtering
+
+### Complex filter combinations
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity:             "high,critical",
+		ExcludeSeverities:    "info",
+		Tags:                 []string{"cve", "rce"},
+		ExcludeTags:          []string{"dos", "intrusive"},
+		ProtocolTypes:        "http,dns",
+		ExcludeProtocolTypes: "code",
+		Authors:              []string{"pdteam"},
+		IDs:                  []string{"CVE-2021-44228"},
+		ExcludeIDs:           []string{"test-template"},
+	}),
+)
+```
+
+### DSL template conditions
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		TemplateCondition: []string{
+			"contains(tags, 'cve') && severity == 'critical'",
+		},
+	}),
+)
+```
+
+## Network configuration
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithNetworkConfig(nuclei.NetworkConfig{
+		Timeout:               30,
+		Retries:               3,
+		LeaveDefaultPorts:     true,
+		Interface:             "eth0",
+		SourceIP:              "192.168.1.100",
+		SystemResolvers:       false,
+		InternalResolversList: []string{"1.1.1.1", "8.8.8.8"},
+		MaxHostError:          30,
+		DisableMaxHostErr:     false,
+		TrackError:            []string{"timeout", "no-address"},
+	}),
+)
+```
+
+## Interactsh integration
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/interactsh"
+
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithInteractshOptions(nuclei.InteractshOpts{
+		ServerURL:      "https://interact.sh",
+		CacheSize:      5000,
+		Eviction:       60,
+		CooldownPeriod: 5,
+		PollDuration:   5,
+	}),
+)
+```
+
+## Headless browser support
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.EnableHeadlessWithOpts(&nuclei.HeadlessOpts{
+		PageTimeout: 20,
+		ShowBrowser: false,
+		UseChrome:   false,
+		HeadlessOptions: []string{
+			"--no-sandbox",
+			"--disable-gpu",
+		},
+	}),
+)
+```
+
+<Warning>
+  Enabling headless mode may open up attack surface due to browser usage and can be prone to exploitation by custom unverified templates if not properly configured.
+</Warning>
+
+## Stats and metrics
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.EnableStatsWithOpts(nuclei.StatsOptions{
+		Interval:         5,  // seconds
+		JSON:             true,
+		MetricServerPort: 6064,
+	}),
+)
+```
+
+Access metrics at `http://localhost:6064/metrics`
+
+## Custom output writers
+
+```go
+import (
+	"github.com/projectdiscovery/nuclei/v3/pkg/output"
+)
+
+type CustomWriter struct {
+	// Your custom implementation
+}
+
+func (w *CustomWriter) Write(event *output.ResultEvent) error {
+	// Custom write logic
+	return nil
+}
+
+func (w *CustomWriter) Close() {}
+
+writer := &CustomWriter{}
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.UseOutputWriter(writer),
+)
+```
+
+## Proxy configuration
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithProxy(
+		[]string{"http://proxy.example.com:8080"},
+		true, // proxy internal requests
+	),
+)
+```
+
+## Custom variables
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithVars([]string{
+		"api_key=secret123",
+		"base_url=https://api.example.com",
+	}),
+)
+```
+
+Use in templates:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{base_url}}/endpoint"
+    headers:
+      Authorization: "Bearer {{api_key}}"
+```
+
+## Authentication providers
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/authprovider"
+
+type CustomAuthProvider struct {
+	// Your implementation
+}
+
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithAuthProvider(&CustomAuthProvider{}),
+)
+```
+
+## Secrets management
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.LoadSecretsFromFile(
+		[]string{"/path/to/secrets.yaml"},
+		true, // prefetch secrets
+	),
+)
+```
+
+## Scan strategies
+
+```go
+// Host-spray mode (default)
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithScanStrategy("host-spray"),
+)
+
+// Template-spray mode
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithScanStrategy("template-spray"),
+)
+```
+
+## Accessing internal components
+
+### Get loaded templates
+
+```go
+templates := ne.GetTemplates()
+workflows := ne.GetWorkflows()
+
+fmt.Printf("Loaded %d templates and %d workflows\n", 
+	len(templates), len(workflows))
+```
+
+### Get executor options
+
+```go
+execOpts := ne.GetExecuterOptions()
+fmt.Printf("Rate limit: %d\n", execOpts.RateLimiter.GetLimit())
+```
+
+### Get engine options
+
+```go
+opts := ne.Options()
+fmt.Printf("Template threads: %d\n", opts.TemplateThreads)
+```
+
+### Access core engine
+
+```go
+engine := ne.Engine()
+workPool := engine.GetWorkPool()
+```
+
+## Cluster template mappings
+
+```go
+// Get templates in a cluster
+templateIDs := ne.GetClusterTemplateIDs("http-get")
+fmt.Printf("Templates in cluster: %v\n", templateIDs)
+
+// Get all cluster mappings
+mappings := ne.GetAllClusterMappings()
+for clusterID, templateIDs := range mappings {
+	fmt.Printf("Cluster %s: %v\n", clusterID, templateIDs)
+}
+```
+
+## Resume support
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithResumeFile("/tmp/nuclei-resume.cfg"),
+)
+```
+
+## DAST mode
+
+```go
+// Only run DAST templates
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.DASTMode(),
+)
+```
+
+## Passive mode
+
+```go
+// Process HTTP responses without sending requests
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.EnablePassiveMode(),
+)
+```
+
+## Response size limits
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithResponseReadSize(10485760), // 10MB
+)
+```
+
+## Best practices
+
+<Check>Pre-install templates when using `ThreadSafeNucleiEngine`</Check>
+<Check>Use sized waitgroups to control concurrency</Check>
+<Check>Implement proper error handling in goroutines</Check>
+<Check>Set appropriate timeouts with context</Check>
+<Check>Monitor resource usage with stats when running at scale</Check>
+<Check>Use template filters to reduce unnecessary scans</Check>
+<Check>Configure rate limiting to avoid overwhelming targets</Check>
+
+## Performance optimization tips
+
+1. **Adjust concurrency**: Tune `TemplateConcurrency` and `HostConcurrency` based on your resources
+2. **Use template clustering**: Nuclei automatically clusters identical requests
+3. **Enable caching**: Keep default template caching enabled for better performance
+4. **Filter early**: Use strict template filters to reduce the number of templates loaded
+5. **Batch targets**: Load multiple targets at once instead of one-by-one
+6. **Use thread-safe mode**: For parallel scanning of different target groups
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration options" icon="sliders" href="/sdk/configuration-options">
+    Complete reference of all options
+  </Card>
+  <Card title="API reference" icon="code" href="/sdk/api/nuclei-engine">
+    Detailed API documentation
+  </Card>
+</CardGroup>

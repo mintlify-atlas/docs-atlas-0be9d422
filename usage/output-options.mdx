@@ -1,0 +1,727 @@
+---
+title: Output options
+description: Learn how to export, format, and customize Nuclei scan results in various formats including JSON, Markdown, and SARIF
+---
+
+## Output basics
+
+Nuclei provides flexible output options to save, format, and export scan results for analysis, reporting, and integration with other tools.
+
+## File output
+
+### Save to file
+
+Write findings to a text file:
+
+```bash
+nuclei -target https://example.com -output results.txt
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -o findings.txt
+```
+
+The output file contains one finding per line in Nuclei's default format:
+```
+[CVE-2021-44228] [http] [critical] https://example.com/api
+[self-signed-ssl] [ssl] [info] example.com:443
+```
+
+<Note>
+  Output files are appended to by default. Delete or rename old output files before new scans to avoid mixing results.
+</Note>
+
+## JSON export
+
+Export detailed results in JSON format:
+
+### JSON Lines (JSONL)
+
+Export in JSON Lines format (one JSON object per line):
+
+```bash
+nuclei -target https://example.com -jsonl-export output.jsonl
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -jle output.jsonl
+```
+
+Or use the `-jsonl` flag to output to stdout:
+```bash
+nuclei -target https://example.com -jsonl
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -j
+```
+
+### JSON array
+
+Export as a single JSON array:
+
+```bash
+nuclei -target https://example.com -json-export output.json
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -je output.json
+```
+
+<Tip>
+  JSONL format is better for streaming and processing large result sets, while JSON array format is better for one-time analysis.
+</Tip>
+
+### JSON structure
+
+Nuclei's JSON output includes:
+
+```json
+{
+  "template-id": "CVE-2021-44228",
+  "info": {
+    "name": "Apache Log4j RCE",
+    "author": ["pdteam"],
+    "severity": "critical",
+    "description": "Apache Log4j2 remote code execution",
+    "tags": ["cve", "rce", "log4j"]
+  },
+  "type": "http",
+  "host": "https://example.com",
+  "matched-at": "https://example.com/api",
+  "timestamp": "2024-03-01T12:00:00Z",
+  "curl-command": "curl -X GET https://example.com/api",
+  "matcher-name": "log4j-detection",
+  "request": "GET /api HTTP/1.1...",
+  "response": "HTTP/1.1 200 OK..."
+}
+```
+
+## JSON customization
+
+### Omit raw requests/responses
+
+Reduce output size by omitting HTTP request/response pairs:
+
+```bash
+nuclei -target https://example.com -jsonl-export output.jsonl -omit-raw
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -jle output.jsonl -or
+```
+
+### Omit template encoding
+
+Exclude encoded template from JSON output:
+
+```bash
+nuclei -target https://example.com -jsonl-export output.jsonl -omit-template
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -jle output.jsonl -ot
+```
+
+<Info>
+  Omitting raw data and templates significantly reduces output file size for large scans.
+</Info>
+
+## Markdown export
+
+Generate organized Markdown reports:
+
+```bash
+nuclei -target https://example.com -markdown-export reports/
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -me reports/
+```
+
+This creates a directory structure:
+```
+reports/
+├── example.com/
+│   ├── CVE-2021-44228.md
+│   ├── self-signed-ssl.md
+│   └── index.md
+```
+
+### Markdown sorting
+
+Control how Markdown reports are organized:
+
+<Tabs>
+  <Tab title="By template">
+    Sort by template ID (default):
+    ```bash
+    MARKDOWN_EXPORT_SORT_MODE=template nuclei -u example.com -me reports/
+    ```
+  </Tab>
+  
+  <Tab title="By host">
+    Sort by target host:
+    ```bash
+    MARKDOWN_EXPORT_SORT_MODE=host nuclei -u example.com -me reports/
+    ```
+  </Tab>
+  
+  <Tab title="By severity">
+    Sort by severity level:
+    ```bash
+    MARKDOWN_EXPORT_SORT_MODE=severity nuclei -u example.com -me reports/
+    ```
+  </Tab>
+  
+  <Tab title="No sorting">
+    No sorting (faster):
+    ```bash
+    MARKDOWN_EXPORT_SORT_MODE=none nuclei -u example.com -me reports/
+    ```
+  </Tab>
+</Tabs>
+
+## SARIF export
+
+Export in SARIF format for integration with code analysis platforms:
+
+```bash
+nuclei -target https://example.com -sarif-export output.sarif
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -se output.sarif
+```
+
+<Info>
+  SARIF (Static Analysis Results Interchange Format) is widely supported by GitHub, GitLab, Azure DevOps, and other platforms.
+</Info>
+
+## Response storage
+
+Store all HTTP requests and responses:
+
+### Store responses
+
+```bash
+# Store in default directory (./output)
+nuclei -target https://example.com -store-resp
+
+# Store in custom directory
+nuclei -target https://example.com -store-resp -store-resp-dir responses/
+```
+
+Short flags:
+```bash
+nuclei -u https://example.com -sresp -srd responses/
+```
+
+This creates files like:
+```
+output/
+├── https_example.com_443/
+│   ├── request_1.txt
+│   ├── response_1.txt
+│   ├── request_2.txt
+│   └── response_2.txt
+```
+
+<Warning>
+  Storing all responses can generate large amounts of data. Use disk space wisely.
+</Warning>
+
+## Display options
+
+### Silent mode
+
+Display only findings, no progress or banner:
+
+```bash
+nuclei -target https://example.com -silent
+```
+
+Perfect for piping to other tools:
+```bash
+nuclei -u https://example.com -silent | grep critical
+```
+
+### No metadata
+
+Disable printing result metadata:
+
+```bash
+nuclei -target https://example.com -no-meta
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -nm
+```
+
+### Timestamps
+
+Enable timestamps in output:
+
+```bash
+nuclei -target https://example.com -timestamp
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -ts
+```
+
+Output includes timestamps:
+```
+[2024-03-01 12:00:00] [CVE-2021-44228] [http] [critical] https://example.com
+```
+
+### Matcher status
+
+Show match failure status for debugging:
+
+```bash
+nuclei -target https://example.com -matcher-status
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -ms
+```
+
+<Tip>
+  Matcher status helps debug template logic by showing why certain conditions failed.
+</Tip>
+
+### No color
+
+Disable colored output:
+
+```bash
+nuclei -target https://example.com -no-color
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -nc
+```
+
+Useful for log files and CI/CD pipelines.
+
+## Statistics
+
+### Enable statistics
+
+Display scan statistics:
+
+```bash
+nuclei -target https://example.com -stats
+```
+
+Shows periodic updates:
+```
+Templates: 3500 | Hosts: 1 | RPS: 150 | Errors: 0 | Matches: 5
+```
+
+### Statistics interval
+
+Control update frequency (in seconds):
+
+```bash
+nuclei -target https://example.com -stats -stats-interval 10
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -stats -si 10
+```
+
+### JSON statistics
+
+Output statistics in JSON format:
+
+```bash
+nuclei -target https://example.com -stats -stats-json
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -stats -sj
+```
+
+## HTTP statistics
+
+Enable HTTP status code tracking:
+
+```bash
+nuclei -target https://example.com -http-stats
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -hps
+```
+
+Tracks request/response statistics for analysis.
+
+## Metrics endpoint
+
+Expose metrics via HTTP endpoint:
+
+```bash
+nuclei -target https://example.com -metrics-port 9092
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -mp 9092
+```
+
+Access metrics at `http://localhost:9092/metrics`.
+
+<Info>
+  Metrics are exposed in Prometheus format for monitoring integration.
+</Info>
+
+## Reporting database
+
+Persist results to a database for deduplication:
+
+```bash
+nuclei -target https://example.com -report-db results.db
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -rdb results.db
+```
+
+Benefits:
+- Automatic deduplication
+- Historical tracking
+- Persistent storage
+
+## Reporting integrations
+
+Configure external reporting systems:
+
+```bash
+nuclei -target https://example.com -report-config reporting-config.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -rc reporting-config.yaml
+```
+
+Supported integrations:
+- Jira
+- Slack
+- GitHub Issues
+- Elasticsearch
+- Splunk
+- Custom webhooks
+
+<Tip>
+  See [Cloud Integration](/advanced/cloud-integration) for detailed reporting configuration.
+</Tip>
+
+## Data redaction
+
+Redact sensitive data from output:
+
+```bash
+# Redact specific keys
+nuclei -target https://example.com \
+  -jsonl-export output.jsonl \
+  -redact Authorization,Cookie,api-key
+
+# Redact from file
+nuclei -target https://example.com \
+  -jsonl-export output.jsonl \
+  -redact redact-keys.txt
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -jle output.jsonl -rd Authorization,Cookie
+```
+
+<Warning>
+  Redaction removes sensitive data from query parameters, request headers, and request body.
+</Warning>
+
+## Verbose output
+
+### Verbose mode
+
+Show additional details:
+
+```bash
+nuclei -target https://example.com -verbose
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -v
+```
+
+### Very verbose mode
+
+Show template loading and detailed execution:
+
+```bash
+nuclei -target https://example.com -vv
+```
+
+Shows:
+- Templates being loaded
+- Request/response pairs
+- Matcher evaluation
+- Workflow execution
+
+### Variable dump
+
+Display variable values for debugging:
+
+```bash
+nuclei -target https://example.com -show-var-dump
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -svd
+```
+
+Limit displayed characters:
+```bash
+nuclei -u https://example.com -svd -var-dump-limit 500
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -svd -vdl 500
+```
+
+## Debug output
+
+### Debug mode
+
+Show all requests and responses:
+
+```bash
+nuclei -target https://example.com -debug
+```
+
+### Debug requests only
+
+```bash
+nuclei -target https://example.com -debug-req
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -dreq
+```
+
+### Debug responses only
+
+```bash
+nuclei -target https://example.com -debug-resp
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -dresp
+```
+
+<Note>
+  Debug mode generates extensive output. Use with single targets for troubleshooting.
+</Note>
+
+## Trace and error logs
+
+### Trace log
+
+Log all requests to a file:
+
+```bash
+nuclei -target https://example.com -trace-log trace.log
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -tlog trace.log
+```
+
+### Error log
+
+Log errors to a separate file:
+
+```bash
+nuclei -target https://example.com -error-log errors.log
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -elog errors.log
+```
+
+## Practical examples
+
+### Example 1: Comprehensive reporting
+
+```bash
+nuclei -list targets.txt \
+  -output findings.txt \
+  -json-export findings.json \
+  -markdown-export reports/ \
+  -sarif-export findings.sarif \
+  -report-db scan-results.db \
+  -stats
+```
+
+### Example 2: Silent pipeline
+
+```bash
+cat targets.txt | \
+  nuclei -silent -jsonl | \
+  jq -r 'select(.info.severity=="critical") | .host'
+```
+
+### Example 3: Detailed debugging
+
+```bash
+nuclei -u https://example.com \
+  -t custom-template.yaml \
+  -debug \
+  -verbose \
+  -matcher-status \
+  -trace-log trace.log
+```
+
+### Example 4: Production scan
+
+```bash
+nuclei -list production.txt \
+  -severity critical,high \
+  -silent \
+  -jsonl-export findings.jsonl \
+  -omit-raw \
+  -no-color \
+  -report-db production-scan.db
+```
+
+### Example 5: CI/CD integration
+
+```bash
+nuclei -target $CI_TARGET \
+  -silent \
+  -no-color \
+  -sarif-export nuclei-results.sarif \
+  -severity critical,high \
+  -exclude-tags dos,intrusive
+```
+
+### Example 6: Research and analysis
+
+```bash
+nuclei -list research-targets.txt \
+  -jsonl-export full-results.jsonl \
+  -store-resp \
+  -store-resp-dir responses/ \
+  -stats \
+  -stats-json \
+  -report-db research.db
+```
+
+## Output format comparison
+
+| Format | Use Case | Size | Streaming | Machine Readable |
+|--------|----------|------|-----------|------------------|
+| Text | Quick review | Small | Yes | No |
+| JSONL | Processing | Medium | Yes | Yes |
+| JSON | Analysis | Medium | No | Yes |
+| Markdown | Reports | Large | No | No |
+| SARIF | CI/CD Integration | Large | No | Yes |
+
+## Best practices
+
+<Steps>
+  <Step title="Choose appropriate formats">
+    Select output formats based on your workflow:
+    ```bash
+    # Development: verbose + debug
+    nuclei -u example.com -v -debug-req
+    
+    # Production: silent + JSON + database
+    nuclei -list targets.txt -silent -jle results.jsonl -rdb scan.db
+    
+    # Reporting: Markdown + SARIF
+    nuclei -u example.com -me reports/ -se results.sarif
+    ```
+  </Step>
+  
+  <Step title="Use deduplication">
+    Always use report database for recurring scans:
+    ```bash
+    nuclei -list targets.txt -report-db scan.db
+    ```
+  </Step>
+  
+  <Step title="Optimize output size">
+    Omit unnecessary data for large scans:
+    ```bash
+    nuclei -list large-targets.txt -jle results.jsonl -or -ot
+    ```
+  </Step>
+  
+  <Step title="Enable statistics">
+    Monitor long-running scans:
+    ```bash
+    nuclei -list targets.txt -stats -si 30
+    ```
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Rate limiting"
+    icon="gauge"
+    href="/usage/rate-limiting"
+  >
+    Control scan speed and performance
+  </Card>
+  <Card
+    title="Cloud integration"
+    icon="cloud"
+    href="/advanced/cloud-integration"
+  >
+    Upload results to ProjectDiscovery Cloud
+  </Card>
+  <Card
+    title="Filtering templates"
+    icon="funnel"
+    href="/usage/filtering-templates"
+  >
+    Filter what gets scanned and reported
+  </Card>
+  <Card
+    title="Running scans"
+    icon="play"
+    href="/usage/running-scans"
+  >
+    Back to scanning fundamentals
+  </Card>
+</CardGroup>

@@ -1,0 +1,386 @@
+---
+title: Use cases
+description: Common use cases and scenarios for Nuclei vulnerability scanning
+---
+
+Nuclei is a versatile vulnerability scanner designed to solve modern security challenges. This page explores common use cases and how Nuclei can be applied to different security scenarios.
+
+## Core use cases
+
+<CardGroup cols={2}>
+  <Card title="Vulnerability assessment" icon="shield">
+    Continuous scanning for known CVEs and vulnerabilities
+  </Card>
+  <Card title="Security audits" icon="clipboard-check">
+    Comprehensive security configuration reviews
+  </Card>
+  <Card title="Penetration testing" icon="user-secret">
+    Automated reconnaissance and vulnerability identification
+  </Card>
+  <Card title="Bug bounty hunting" icon="gem">
+    Rapid scanning across large scopes
+  </Card>
+</CardGroup>
+
+## Enterprise security
+
+### Continuous vulnerability scanning
+
+Nuclei excels at continuous monitoring of infrastructure for newly disclosed vulnerabilities.
+
+<Accordion title="Why it matters">
+  Modern attackers exploit new CVEs within days of disclosure. Traditional scanners take weeks to update. Nuclei's community-driven template library is updated within hours of new CVE disclosures.
+</Accordion>
+
+**Implementation:**
+
+```bash
+# Daily automated scans for new vulnerabilities
+nuclei -list production-hosts.txt -nt -json-export daily-scan.json
+```
+
+The `-nt` flag runs only newly added templates from the latest release.
+
+### Asset discovery and inventory
+
+Use Nuclei with technology detection to maintain an accurate asset inventory.
+
+```bash
+# Automatic technology detection and targeted scanning
+nuclei -u https://example.com -automatic-scan
+```
+
+### Compliance and configuration auditing
+
+Verify security configurations across your infrastructure:
+
+- SSL/TLS configuration compliance
+- Security header validation
+- Default credential detection
+- Exposed administrative interfaces
+
+```bash
+# Audit security configurations
+nuclei -list targets.txt -t ssl/ -t misconfigurations/ -t default-logins/
+```
+
+## DevSecOps and CI/CD
+
+### Shift-left security testing
+
+Integrate Nuclei into your development pipeline to catch vulnerabilities early.
+
+<Steps>
+  <Step title="Install Nuclei in CI/CD">
+    ```bash
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    ```
+  </Step>
+
+  <Step title="Scan staging environment">
+    ```bash
+    nuclei -u $STAGING_URL -s critical,high -o findings.json
+    ```
+  </Step>
+
+  <Step title="Fail pipeline on findings">
+    ```bash
+    # Exit with error if critical/high findings exist
+    if [ -s findings.json ]; then exit 1; fi
+    ```
+  </Step>
+</Steps>
+
+### Pre-deployment security gates
+
+Prevent vulnerable code from reaching production:
+
+```bash
+# Scan before deployment
+nuclei -u $DEPLOYMENT_URL -s critical,high -es info,low -silent
+```
+
+### Regression testing
+
+Ensure previously fixed vulnerabilities don't reappear:
+
+```bash
+# Test specific fixed vulnerabilities
+nuclei -u $APP_URL -t previously-fixed-vulns/ -silent
+```
+
+## Penetration testing
+
+### Reconnaissance and enumeration
+
+Nuclei automates the initial reconnaissance phase:
+
+```bash
+# Comprehensive reconnaissance
+nuclei -u https://target.com -tags tech,panel,exposure,misconfig
+```
+
+### Vulnerability validation
+
+Quickly validate potential vulnerabilities identified through other means:
+
+```bash
+# Validate specific CVE
+nuclei -u https://target.com -t cves/2024/CVE-2024-XXXXX.yaml
+```
+
+### Multi-step exploitation workflows
+
+Use Nuclei workflows for complex attack chains:
+
+```yaml
+# Example workflow for multi-step attack
+id: multi-step-workflow
+
+info:
+  name: Multi-step exploitation
+  author: pentest-team
+
+workflows:
+  - template: enumerate-endpoints.yaml
+  - template: check-authentication.yaml
+    subtemplates:
+      - template: exploit-vulnerability.yaml
+```
+
+## Bug bounty hunting
+
+### Rapid scope scanning
+
+Scan large bug bounty scopes efficiently:
+
+```bash
+# Scan bug bounty targets
+nuclei -list scope.txt -c 25 -rl 150 -s medium,high,critical
+```
+
+### Template customization
+
+Create custom templates for unique vulnerabilities:
+
+```bash
+# Use custom templates for program-specific issues
+nuclei -u https://target.com -t custom-bounty-templates/
+```
+
+### Integration with recon tools
+
+Combine Nuclei with subdomain enumeration tools:
+
+```bash
+# Subfinder + httpx + nuclei pipeline
+subfinder -d target.com | httpx -silent | nuclei -silent
+```
+
+## Cloud security
+
+### Multi-cloud scanning
+
+Nuclei supports scanning across AWS, GCP, Azure, and other cloud platforms.
+
+<Accordion title="AWS security scanning">
+```bash
+# Scan for AWS misconfigurations
+nuclei -list aws-resources.txt -t cloud/aws/
+```
+
+Examples:
+- Open S3 buckets
+- Exposed ELB endpoints
+- Public RDS instances
+- Misconfigured IAM policies
+</Accordion>
+
+<Accordion title="Azure security scanning">
+```bash
+# Scan Azure resources
+nuclei -list azure-resources.txt -t cloud/azure/
+```
+
+Examples:
+- Subdomain takeover vulnerabilities
+- Exposed storage accounts
+- Misconfigured App Services
+</Accordion>
+
+<Accordion title="GCP security scanning">
+```bash
+# Scan GCP resources
+nuclei -list gcp-resources.txt -t cloud/gcp/
+```
+
+Examples:
+- Open Cloud Storage buckets
+- Exposed BigQuery datasets
+- Misconfigured Firebase instances
+</Accordion>
+
+### Kubernetes security
+
+Scan Kubernetes clusters and services:
+
+```bash
+# Scan k8s exposed services
+nuclei -list k8s-services.txt -t technologies/kubernetes/
+```
+
+## Application security testing
+
+### Web application scanning
+
+<Accordion title="OWASP Top 10 testing">
+Nuclei templates cover all OWASP Top 10 vulnerabilities:
+
+1. **Broken Access Control**: Authorization bypass templates
+2. **Cryptographic Failures**: SSL/TLS misconfiguration detection
+3. **Injection**: SQL injection, XSS, command injection templates
+4. **Insecure Design**: Business logic vulnerability templates
+5. **Security Misconfiguration**: Default credentials, exposed configs
+6. **Vulnerable Components**: CVE detection for libraries/frameworks
+7. **Authentication Failures**: Weak authentication mechanism detection
+8. **Data Integrity Failures**: Deserialization vulnerability templates
+9. **Security Logging Failures**: Detection of missing security controls
+10. **SSRF**: Server-Side Request Forgery templates
+
+```bash
+nuclei -u https://webapp.com -tags owasp
+```
+</Accordion>
+
+### API security testing
+
+Test REST and GraphQL APIs:
+
+```bash
+# Scan API endpoints
+nuclei -u https://api.example.com -t http/vulnerabilities/
+```
+
+### DAST (Dynamic Application Security Testing)
+
+Use Nuclei's fuzzing capabilities for dynamic testing:
+
+```bash
+# Enable DAST mode
+nuclei -u https://example.com -dast
+```
+
+## Network security
+
+### Port and service scanning
+
+Scan network services for vulnerabilities:
+
+```bash
+# Scan network range
+nuclei -target 10.0.0.0/24 -t network/
+```
+
+### Protocol-specific testing
+
+Nuclei supports multiple protocols:
+
+- **HTTP/HTTPS**: Web application testing
+- **DNS**: DNS enumeration and validation
+- **TCP/TLS**: Network service testing
+- **SSL**: Certificate and configuration auditing
+- **WebSocket**: WebSocket endpoint testing
+- **WHOIS**: Domain registration information
+
+```bash
+# Multi-protocol scanning
+nuclei -u example.com -t dns/ -t ssl/ -t network/
+```
+
+## Research and threat intelligence
+
+### CVE validation
+
+Researchers use Nuclei to create proof-of-concept templates for new CVEs:
+
+```bash
+# Test new CVE template
+nuclei -u https://target.com -t research/CVE-2024-NEW.yaml -debug
+```
+
+### Threat hunting
+
+Proactively search for indicators of compromise:
+
+```bash
+# Hunt for specific threats
+nuclei -list infrastructure.txt -t custom-threat-hunting/
+```
+
+## Team collaboration
+
+### Shared template libraries
+
+Organizations can maintain private template libraries:
+
+```bash
+# Use organization templates
+nuclei -u https://target.com -t /org/security-templates/
+```
+
+### Results aggregation
+
+Centralize results across security teams:
+
+```bash
+# Upload to ProjectDiscovery Cloud for team visibility
+nuclei -list targets.txt -dashboard -team-id YOUR_TEAM_ID
+```
+
+## Integration scenarios
+
+<CardGroup cols={2}>
+  <Card title="SIEM integration" icon="database">
+    Export findings to Splunk, Elastic, or other SIEM platforms
+  </Card>
+  <Card title="Issue tracking" icon="ticket">
+    Automatic ticket creation in Jira, GitHub, GitLab
+  </Card>
+  <Card title="Webhook notifications" icon="bell">
+    Real-time alerts via Slack, Discord, Teams
+  </Card>
+  <Card title="Custom workflows" icon="code">
+    Build custom security automation workflows
+  </Card>
+</CardGroup>
+
+## Performance at scale
+
+Nuclei is designed for large-scale scanning:
+
+- **50x faster scans** with ProjectDiscovery Cloud
+- **Template clustering** to reduce redundant requests
+- **Connection pooling** for optimal performance
+- **Rate limiting** to respect target resources
+
+```bash
+# Optimized large-scale scanning
+nuclei -list 10000-targets.txt -c 50 -bs 100 -rl 200 -timeout 10
+```
+
+## Learn more
+
+<CardGroup cols={2}>
+  <Card title="Examples" icon="code" href="/resources/examples">
+    See real-world command examples
+  </Card>
+  <Card title="Template library" icon="book" href="/resources/template-library">
+    Explore the template library
+  </Card>
+  <Card title="Running Nuclei" icon="play" href="/running/overview">
+    Learn how to run Nuclei
+  </Card>
+  <Card title="Pro & Enterprise" icon="building" href="https://projectdiscovery.io/pricing">
+    Explore enterprise features
+  </Card>
+</CardGroup>

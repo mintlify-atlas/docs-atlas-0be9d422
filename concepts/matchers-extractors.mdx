@@ -1,0 +1,847 @@
+---
+title: Matchers and extractors
+description: Deep dive into Nuclei's matching and extraction capabilities
+---
+
+Matchers and extractors are the intelligence behind Nuclei templates. This guide provides an in-depth look at their capabilities, configuration options, and advanced usage patterns.
+
+## Matchers deep dive
+
+Matchers evaluate responses against defined conditions to determine if a vulnerability exists.
+
+### Matcher type reference
+
+#### Status matcher
+
+Matches HTTP status codes:
+
+```yaml
+matchers:
+  - type: status
+    status:
+      - 200    # OK
+      - 302    # Redirect
+      - 403    # Forbidden
+      - 500    # Internal server error
+    name: interesting-status
+```
+
+**Use cases:**
+- Detecting accessible admin panels (200)
+- Finding redirect chains (301, 302)
+- Identifying server errors (500, 502, 503)
+- Checking authorization bypass (403 → 200)
+
+#### Word matcher
+
+Matches exact strings in responses:
+
+```yaml
+matchers:
+  - type: word
+    words:
+      - "admin panel"
+      - "dashboard"
+      - "wp-admin"
+    condition: or
+    case-insensitive: true
+    part: body
+```
+
+**Options:**
+- `condition`: `and` or `or` (default: `or`)
+- `case-insensitive`: Boolean (default: `false`)
+- `part`: Which part to match against
+- `encoding`: `hex` for hex-encoded strings
+
+**Use cases:**
+- Technology detection
+- Error message identification
+- Content presence validation
+
+#### Regex matcher
+
+Matches using regular expressions:
+
+```yaml
+matchers:
+  - type: regex
+    regex:
+      - "(?i)password\\s*[:=]\\s*['\"]([^'\"]+)"
+      - "(?m)^Location:\\s*https?://evil\\.com"
+      - "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"
+    condition: or
+    part: body
+```
+
+**Important notes:**
+- Go regex engine doesn't support lookaheads/lookbehinds
+- Use `(?i)` for case-insensitive matching
+- Use `(?m)` for multiline mode
+- Escape backslashes in YAML (`\\` becomes `\`)
+
+**Use cases:**
+- Pattern-based vulnerability detection
+- Flexible string matching
+- Email/URL extraction validation
+
+#### Binary matcher
+
+Matches binary patterns (hex-encoded):
+
+```yaml
+matchers:
+  - type: binary
+    binary:
+      - "504B0304"              # ZIP file header
+      - "FFD8FFE0"              # JPEG JFIF format
+      - "1F8B08"                # GZIP compressed
+      - "4a4156412050524f46494c45"  # Java profile
+    condition: or
+```
+
+**Use cases:**
+- File type detection
+- Binary protocol responses
+- Magic byte validation
+- Heap dump detection
+
+#### Size matcher
+
+Matches response size:
+
+```yaml
+matchers:
+  - type: size
+    size:
+      - 0      # Empty response
+      - 1234   # Exact size
+      - 5000   # Another specific size
+```
+
+**Use cases:**
+- Detecting empty responses
+- Finding default error pages (same size)
+- Identifying specific file sizes
+
+#### DSL matcher
+
+Matches using Domain Specific Language expressions:
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "contains(body, 'admin') && status_code == 200"
+      - "len(body) > 1000 && contains(tolower(all_headers), 'application/json')"
+      - "duration < 500 && !contains(body, 'error')"
+      - "contains_any(body, 'password', 'secret', 'api_key')"
+    condition: or
+```
+
+**DSL functions reference:**
+
+<Accordion title="String functions">
+  - `contains(str, substr)` - Check if string contains substring
+  - `contains_any(str, ...substrs)` - Check if contains any substring
+  - `contains_all(str, ...substrs)` - Check if contains all substrings
+  - `starts_with(str, prefix)` - Check if starts with prefix
+  - `ends_with(str, suffix)` - Check if ends with suffix
+  - `len(str)` - Get string length
+  - `to_upper(str)` - Convert to uppercase
+  - `to_lower(str)` - Convert to lowercase
+  - `trim(str)` - Remove whitespace
+  - `regex(pattern, str)` - Regex match
+</Accordion>
+
+<Accordion title="Response variables">
+  - `status_code` - HTTP status code
+  - `body` - Response body
+  - `header` - Response headers (map)
+  - `all_headers` - All headers as string
+  - `content_length` - Response length
+  - `content_type` - Content-Type header
+  - `duration` - Response time in ms
+  - `request` - Full request
+  - `response` - Full response
+</Accordion>
+
+<Accordion title="Logical operators">
+  - `&&` - Logical AND
+  - `||` - Logical OR
+  - `!` - Logical NOT
+  - `==` - Equality
+  - `!=` - Inequality
+  - `>`, `<`, `>=`, `<=` - Comparison
+</Accordion>
+
+**Use cases:**
+- Complex conditional logic
+- Combining multiple checks
+- Performance-based detection
+- Advanced response validation
+
+#### XPath matcher
+
+Matches using XPath queries on HTML/XML:
+
+```yaml
+matchers:
+  - type: xpath
+    xpath:
+      - "/html/head/title[contains(text(), 'Admin')]"
+      - "//a[@target='_blank']"
+      - "//input[@type='password' and @name='admin']"
+      - "count(//form) > 0"
+```
+
+**Use cases:**
+- HTML structure validation
+- Element presence checking
+- Attribute-based matching
+- XML response validation
+
+### Matcher conditions
+
+Control how multiple values within a matcher are evaluated:
+
+<Tabs>
+  <Tab title="OR condition">
+    ```yaml
+    matchers:
+      - type: word
+        words:
+          - "admin"
+          - "administrator"
+          - "root"
+        condition: or  # Match if ANY word is found
+    ```
+    **Default behavior** - most permissive
+  </Tab>
+  
+  <Tab title="AND condition">
+    ```yaml
+    matchers:
+      - type: word
+        words:
+          - "admin"
+          - "authenticated"
+          - "dashboard"
+        condition: and  # Match only if ALL words are found
+    ```
+    **Stricter matching** - reduces false positives
+  </Tab>
+</Tabs>
+
+### Matchers-condition
+
+Control how multiple matchers relate to each other:
+
+<CodeGroup>
+
+```yaml OR (default)
+id: or-matchers-condition
+
+info:
+  name: OR Matchers Condition
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    
+    matchers-condition: or  # Match if ANY matcher succeeds
+    matchers:
+      - type: status
+        status:
+          - 200
+      
+      - type: word
+        words:
+          - "Admin Panel"
+```
+
+```yaml AND
+id: and-matchers-condition
+
+info:
+  name: AND Matchers Condition
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    
+    matchers-condition: and  # Match only if ALL matchers succeed
+    matchers:
+      - type: status
+        status:
+          - 200
+      
+      - type: word
+        words:
+          - "Admin Panel"
+      
+      - type: word
+        words:
+          - "Logged in as: admin"
+```
+
+</CodeGroup>
+
+### Negative matchers
+
+Invert matcher logic to match when conditions are NOT met:
+
+```yaml
+matchers:
+  - type: word
+    words:
+      - "protected"
+      - "authentication required"
+      - "unauthorized"
+    negative: true  # Match when words are NOT present
+  
+  - type: status
+    status:
+      - 403
+      - 401
+    negative: true  # Match when status is NOT 401 or 403
+```
+
+**Use cases:**
+- Detecting missing security headers
+- Finding unprotected endpoints
+- Validating absence of error messages
+
+### Internal matchers
+
+Hide matchers from output (useful in workflows):
+
+```yaml
+matchers:
+  - name: internal-check
+    type: word
+    words:
+      - "wordpress"
+    internal: true  # Don't show in output, but can trigger subtemplates
+```
+
+### Part specification
+
+Different protocols expose different parts for matching:
+
+<Tabs>
+  <Tab title="HTTP">
+    ```yaml
+    matchers:
+      - type: word
+        part: body
+        words: ["admin"]
+      
+      - type: word
+        part: header
+        words: ["Server: Apache"]
+      
+      - type: word
+        part: all  # Both header and body
+        words: ["vulnerable"]
+      
+      - type: word
+        part: cookie
+        words: ["PHPSESSID"]
+    ```
+  </Tab>
+  
+  <Tab title="DNS">
+    ```yaml
+    matchers:
+      - type: word
+        part: answer
+        words: ["1.1.1.1"]
+      
+      - type: word
+        part: question
+        words: ["example.com"]
+    ```
+  </Tab>
+  
+  <Tab title="Network">
+    ```yaml
+    matchers:
+      - type: word
+        part: data
+        words: ["PONG"]
+    ```
+  </Tab>
+</Tabs>
+
+## Extractors deep dive
+
+Extractors pull specific data from responses for reporting or use in subsequent requests.
+
+### Extractor type reference
+
+#### Regex extractor
+
+Extract using regular expressions:
+
+```yaml
+extractors:
+  - type: regex
+    name: api_token
+    part: body
+    regex:
+      - "token['\"]?\\s*[:=]\\s*['\"]([a-zA-Z0-9_-]+)"
+      - "api_key['\"]?\\s*[:=]\\s*['\"]([a-zA-Z0-9_-]+)"
+    group: 1  # Extract capture group 1
+    internal: false
+```
+
+**Regex groups:**
+- `group: 0` - Entire match (default)
+- `group: 1` - First capture group
+- `group: 2` - Second capture group, etc.
+
+#### KVal extractor
+
+Extract key-value pairs from headers and cookies:
+
+```yaml
+extractors:
+  - type: kval
+    name: server_info
+    kval:
+      - server
+      - content_type
+      - x_powered_by
+      - set_cookie
+```
+
+**Important notes:**
+- Keys are case-insensitive
+- Replace hyphens with underscores: `Content-Type` → `content_type`
+- Works with headers and cookies
+
+#### JSON extractor
+
+Extract from JSON using jq-style syntax:
+
+```yaml
+extractors:
+  - type: json
+    name: user_data
+    json:
+      - ".version"
+      - ".users[] | .email"
+      - ".data.auth.token"
+      - ".[] | select(.role == \"admin\") | .id"
+    internal: false
+```
+
+**jq syntax reference:**
+- `.key` - Access object key
+- `.[]` - Array iteration
+- `| .key` - Pipe to next operation
+- `select()` - Filter elements
+- `.[]? ` - Optional iteration (won't fail if not array)
+
+#### XPath extractor
+
+Extract from HTML/XML using XPath:
+
+```yaml
+extractors:
+  - type: xpath
+    name: page_links
+    xpath:
+      - "/html/head/title/text()"
+      - "//a/@href"
+      - "//meta[@name='description']/@content"
+    attribute: href  # For extracting attributes
+```
+
+#### DSL extractor
+
+Extract using DSL expressions:
+
+```yaml
+extractors:
+  - type: dsl
+    name: computed_values
+    dsl:
+      - "status_code"
+      - "len(body)"
+      - "to_upper(header['server'])"
+      - "duration"
+```
+
+### Internal vs external extractors
+
+<CodeGroup>
+
+```yaml Internal (for chaining)
+extractors:
+  - type: regex
+    name: csrf_token
+    internal: true  # Not shown in output
+    regex:
+      - 'name="csrf_token" value="([^"]+)"'
+    group: 1
+
+# Use in next request:
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/submit"
+    body: "csrf_token={{csrf_token}}&data=test"
+```
+
+```yaml External (for reporting)
+extractors:
+  - type: regex
+    name: exposed_emails
+    internal: false  # Show in output
+    regex:
+      - "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"
+```
+
+</CodeGroup>
+
+### Case-insensitive extraction
+
+```yaml
+extractors:
+  - type: regex
+    regex:
+      - "(?i)password\\s*[:=]\\s*([^\r\n]+)"
+    case-insensitive: true
+    group: 1
+```
+
+## Advanced patterns
+
+### Multi-step extraction and matching
+
+```yaml http-matcher-extractor-dy-extractor.yaml
+id: http-matcher-extractor-dy-extractor
+info:
+  name: HTTP matcher and extractor & dynamic extractor
+  description: >
+    Edgecase to test for a combination of matchers , extractors and dynamic extractors
+  author: pdteam
+  severity: info
+
+http:
+  - raw:
+      - |
+        GET {{BaseURL}} HTTP/1.1
+      - |
+        GET {{absolutePath}} HTTP/1.1
+
+    req-condition: true
+    extractors:
+      - type: regex
+        internal: true
+        part: body_1
+        name: absolutePath
+        regex:
+          - '<a href="(/domains)">'
+        group: 1
+      - type: regex
+        internal: false
+        part: body_2
+        name: title
+        regex:
+          - '<title[^>]*>([^<]+)</title>'
+        group: 1
+    matchers:
+      - type: regex
+        part: body_2
+        regex:
+          - '<title[^>]*>([^<]+)</title>'
+```
+
+### Conditional extraction
+
+Extract only when certain conditions are met:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/users"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code == 200"
+          - "contains(content_type, 'application/json')"
+        condition: and
+    
+    extractors:
+      - type: json
+        json:
+          - ".users[] | .email"
+        # Only extracts if matchers succeed
+```
+
+### Multiple extractors with different types
+
+```yaml
+extractors:
+  # Extract from headers
+  - type: kval
+    name: headers
+    kval:
+      - server
+      - x_powered_by
+  
+  # Extract from body with regex
+  - type: regex
+    name: version
+    regex:
+      - "version:\\s*([0-9.]+)"
+    group: 1
+  
+  # Extract from JSON in body
+  - type: json
+    name: api_data
+    json:
+      - ".version"
+      - ".build"
+  
+  # Compute values with DSL
+  - type: dsl
+    name: metrics
+    dsl:
+      - "len(body)"
+      - "duration"
+```
+
+### Chaining templates with extractors
+
+<Steps>
+  <Step title="Template 1: Extract">
+    ```yaml
+    extractors:
+      - type: regex
+        name: next_page
+        internal: true
+        regex:
+          - 'next_page=([^&"]+)'
+        group: 1
+    ```
+  </Step>
+  
+  <Step title="Template 2: Use extracted value">
+    ```yaml
+    http:
+      - path:
+          - "{{BaseURL}}?page={{next_page}}"
+    ```
+  </Step>
+  
+  <Step title="Workflow: Chain them">
+    ```yaml
+    workflows:
+      - template: extract.yaml
+      - template: use-extracted.yaml
+    ```
+  </Step>
+</Steps>
+
+## Matcher and extractor examples
+
+### Authentication bypass detection
+
+```yaml
+id: auth-bypass
+
+info:
+  name: Authentication Bypass Detection
+  author: pdteam
+  severity: critical
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+      - "{{BaseURL}}/dashboard"
+    
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+        negative: false
+      
+      - type: word
+        words:
+          - "login"
+          - "authentication"
+          - "unauthorized"
+        negative: true  # Should NOT contain auth prompts
+      
+      - type: word
+        words:
+          - "dashboard"
+          - "admin"
+          - "panel"
+        condition: or
+    
+    extractors:
+      - type: regex
+        name: username
+        regex:
+          - "Welcome,?\\s+([A-Za-z0-9_]+)"
+        group: 1
+```
+
+### API key exposure
+
+```yaml
+id: api-key-exposure
+
+info:
+  name: API Key Exposure
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.env"
+      - "{{BaseURL}}/config.json"
+      - "{{BaseURL}}/app.config"
+    
+    matchers:
+      - type: regex
+        regex:
+          - "(?i)(api[_-]?key|apikey|api[_-]?secret)\\s*[:=]"
+    
+    extractors:
+      - type: regex
+        name: api_keys
+        regex:
+          - "(?i)(api[_-]?key|apikey)\\s*[:=]\\s*['\"]?([A-Za-z0-9_-]{20,})" 
+        group: 2
+      
+      - type: regex
+        name: api_secrets
+        regex:
+          - "(?i)(api[_-]?secret|secret[_-]?key)\\s*[:=]\\s*['\"]?([A-Za-z0-9_-]{20,})"
+        group: 2
+```
+
+### Version fingerprinting
+
+```yaml
+id: version-fingerprint
+
+info:
+  name: Technology Version Fingerprinting
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: regex
+        part: header
+        regex:
+          - "Server: .*"
+      
+      - type: regex
+        part: body
+        regex:
+          - "(?i)version|powered by"
+    
+    extractors:
+      - type: kval
+        name: server_header
+        kval:
+          - server
+          - x_powered_by
+      
+      - type: regex
+        name: version_numbers
+        regex:
+          - "(?i)version[:\s]*([0-9.]+)"
+          - "v([0-9.]+)"
+          - "([0-9]+\\.[0-9]+\\.[0-9]+)"
+        group: 1
+      
+      - type: json
+        name: api_version
+        json:
+          - ".version"
+          - ".api.version"
+```
+
+## Performance considerations
+
+<Note>
+**Optimization tips:**
+
+1. Use specific `part` specifications to reduce processing
+2. Prefer `word` matchers over `regex` when possible
+3. Use `internal: true` for intermediate extractors
+4. Combine conditions with `matchers-condition: and` to fail fast
+5. Use DSL matchers for complex logic instead of multiple matchers
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Matcher not matching expected content">
+    - Check `part` specification (body, header, all)
+    - Enable case-insensitive if needed
+    - Verify escaping in regex patterns
+    - Use `-debug` flag to see actual responses
+  </Accordion>
+  
+  <Accordion title="Extractor not extracting">
+    - Verify regex group number is correct
+    - Check if `part` is specified correctly
+    - Ensure JSON/XPath syntax is valid
+    - Test regex patterns with online tools first
+  </Accordion>
+  
+  <Accordion title="Too many false positives">
+    - Use `matchers-condition: and`
+    - Add more specific matchers
+    - Use negative matchers for common false patterns
+    - Increase specificity of word/regex patterns
+  </Accordion>
+  
+  <Accordion title="Extractors not passing to next request">
+    - Ensure extractor has a `name`
+    - Set `internal: true` for chaining
+    - Verify template order in workflow
+    - Check variable reference syntax: `{{var_name}}`
+  </Accordion>
+</AccordionGroup>
+
+## Related topics
+
+<CardGroup cols={3}>
+  <Card title="Operators" href="/concepts/operators" icon="gears">
+    Operators overview
+  </Card>
+  
+  <Card title="Templates" href="/concepts/templates" icon="file-code">
+    Template structure
+  </Card>
+  
+  <Card title="Workflows" href="/concepts/workflows" icon="diagram-project">
+    Multi-step templates
+  </Card>
+</CardGroup>

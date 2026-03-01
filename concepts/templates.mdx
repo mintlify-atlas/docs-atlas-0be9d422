@@ -1,0 +1,384 @@
+---
+title: Templates
+description: Understanding Nuclei's template system and structure
+---
+
+Nuclei templates are YAML-based files that define detection logic for security vulnerabilities, misconfigurations, and exposures. Each template is a self-contained unit that specifies what to check and how to identify issues.
+
+## Template structure
+
+Every Nuclei template follows a standardized structure with three main sections:
+
+<CodeGroup>
+
+```yaml Basic template
+id: example-template
+
+info:
+  name: Example Vulnerability Detection
+  author: pdteam
+  severity: high
+  description: Detects a specific vulnerability
+  tags: cve,apache
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+```yaml Multi-protocol template
+id: multi-protocol-check
+
+info:
+  name: Multi-Protocol Security Check
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    matchers:
+      - type: word
+        words:
+          - "vulnerable"
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+    matchers:
+      - type: word
+        words:
+          - "1.1.1.1"
+```
+
+</CodeGroup>
+
+## Required fields
+
+### Template ID
+
+The `id` field uniquely identifies each template. It must match the pattern `^([a-zA-Z0-9]+[-_])*[a-zA-Z0-9]+$`.
+
+<Note>
+A good ID uniquely identifies what the template detects. For example, `git-config-exposure` or `CVE-2021-19520`.
+</Note>
+
+### Info block
+
+The `info` section contains metadata about the template:
+
+```yaml
+info:
+  name: Template name for display
+  author: pdteam
+  severity: info | low | medium | high | critical
+  description: Detailed description of what this template detects
+  reference:
+    - https://example.com/advisory
+  tags: cve,rce,apache
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 9.8
+    cve-id: CVE-2021-12345
+```
+
+<Warning>
+The `name` and `author` fields are required. Templates without these fields will fail validation.
+</Warning>
+
+## Protocol requests
+
+Templates can include one or more protocol-specific request sections. Each protocol has its own syntax and capabilities.
+
+### HTTP requests
+
+```yaml http/get-headers.yaml
+id: basic-get-headers
+
+info:
+  name: Basic GET Headers Request
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    headers:
+      test: nuclei
+    matchers:
+      - type: word
+        words:
+          - "This is test headers matcher text"
+```
+
+### DNS requests
+
+```yaml dns/a.yaml
+id: dns-a-query-example
+
+info:
+  name: Test DNS A Query Template
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+    class: inet
+    recursion: true
+    retries: 3
+    matchers:
+      - type: word
+        words:
+          - "1.1.1.1"
+```
+
+### Network (TCP) requests
+
+```yaml network/basic.yaml
+id: basic-network-request
+
+info:
+  name: Basic Network Request
+  author: pdteam
+  severity: info
+
+network:
+  - host: 
+      - "{{Hostname}}"
+    inputs:
+      - data: "PING\r\n"
+    read-size: 4
+    matchers:
+      - type: word
+        part: data
+        words:
+          - "PONG"
+```
+
+## Variables and constants
+
+Templates support dynamic values through variables and constants.
+
+### Variables
+
+Variables are evaluated at runtime and can use DSL functions:
+
+```yaml
+variables:
+  random_string: "{{randstr}}"
+  timestamp: "{{to_unix_timestamp(now())}}"
+  custom_header: "X-Custom-{{randint}}"
+
+http:
+  - path:
+      - "{{BaseURL}}/{{random_string}}"
+    headers:
+      "{{custom_header}}": "test"
+```
+
+### Constants
+
+Constants are static values defined once:
+
+```yaml
+constants:
+  admin_path: "/administrator"
+  api_version: "v2"
+  timeout: 30
+
+http:
+  - path:
+      - "{{BaseURL}}{{admin_path}}/{{api_version}}/users"
+```
+
+## Template options
+
+### Self-contained templates
+
+Self-contained templates don't require external input and can run independently:
+
+```yaml
+id: self-contained-example
+
+info:
+  name: Self Contained Template
+  author: pdteam
+  severity: info
+
+self-contained: true
+
+http:
+  - method: GET
+    path:
+      - "https://example.com/api/status"
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+### Stop at first match
+
+Control execution flow when a match is found:
+
+```yaml
+id: stop-at-first-match-example
+
+info:
+  name: Stop At First Match
+  author: pdteam
+  severity: info
+
+stop-at-first-match: true
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/path1"
+      - "{{BaseURL}}/path2"
+      - "{{BaseURL}}/path3"
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+<Note>
+When `stop-at-first-match: true`, the template stops executing as soon as any matcher succeeds.
+</Note>
+
+## Multi-protocol templates
+
+Templates can combine multiple protocols in a single file. The order of execution is preserved:
+
+```yaml
+id: multi-protocol-detection
+
+info:
+  name: Multi Protocol Detection
+  author: pdteam
+  severity: medium
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    extractors:
+      - type: regex
+        name: domain
+        internal: true
+        regex:
+          - 'api\\.([a-z0-9-]+\\.com)'
+
+dns:
+  - name: "{{domain}}"
+    type: A
+    matchers:
+      - type: word
+        words:
+          - "192.168"
+```
+
+## Template validation
+
+Templates are validated during parsing:
+
+<Tabs>
+  <Tab title="Valid template">
+    ```yaml
+    id: valid-template
+    
+    info:
+      name: Valid Template Example
+      author: pdteam
+      severity: info
+    
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+        matchers:
+          - type: status
+            status:
+              - 200
+    ```
+  </Tab>
+  
+  <Tab title="Invalid template">
+    ```yaml
+    # Missing required 'author' field
+    id: invalid-template
+    
+    info:
+      name: Invalid Template
+      severity: info
+    
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+    ```
+    
+    This will fail with error: `no template author field provided`
+  </Tab>
+</Tabs>
+
+## Helper variables
+
+Nuclei provides built-in variables for common use cases:
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `{{BaseURL}}` | Complete base URL | `https://example.com` |
+| `{{Hostname}}` | Target hostname | `example.com` |
+| `{{Host}}` | Hostname with port | `example.com:443` |
+| `{{Port}}` | Target port | `443` |
+| `{{Scheme}}` | URL scheme | `https` |
+| `{{FQDN}}` | Fully qualified domain name | `api.example.com` |
+| `{{RootURL}}` | Root URL without path | `https://example.com` |
+| `{{Path}}` | URL path | `/api/v1/users` |
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use descriptive IDs" icon="fingerprint">
+    Choose IDs that clearly describe what the template detects: `apache-rce-cve-2021-41773` instead of `template-001`
+  </Card>
+  
+  <Card title="Add metadata" icon="tags">
+    Include comprehensive info block with severity, references, and classification details
+  </Card>
+  
+  <Card title="Test thoroughly" icon="flask">
+    Validate templates against test targets to ensure zero false positives
+  </Card>
+  
+  <Card title="Keep it simple" icon="minimize">
+    Start with simple detection logic and add complexity only when needed
+  </Card>
+</CardGroup>
+
+## Related topics
+
+<CardGroup cols={3}>
+  <Card title="Workflows" href="/concepts/workflows" icon="diagram-project">
+    Learn about multi-step template execution
+  </Card>
+  
+  <Card title="Protocols" href="/concepts/protocols" icon="network-wired">
+    Explore all supported protocols
+  </Card>
+  
+  <Card title="Operators" href="/concepts/operators" icon="filter">
+    Understand matchers and extractors
+  </Card>
+</CardGroup>

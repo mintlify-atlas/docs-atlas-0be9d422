@@ -1,0 +1,577 @@
+---
+title: Protocols
+description: Overview of all supported protocols in Nuclei
+---
+
+Nuclei supports multiple network protocols, enabling comprehensive security testing across different layers and services. Each protocol implementation provides specialized capabilities for its domain.
+
+## Supported protocols
+
+Nuclei currently supports 10 distinct protocols:
+
+<CardGroup cols={2}>
+  <Card title="HTTP" icon="globe">
+    Web application testing with full HTTP/HTTPS support
+  </Card>
+  
+  <Card title="DNS" icon="network-wired">
+    DNS queries and subdomain enumeration
+  </Card>
+  
+  <Card title="TCP/Network" icon="plug">
+    Raw TCP socket connections and network services
+  </Card>
+  
+  <Card title="SSL/TLS" icon="lock">
+    SSL/TLS certificate and configuration testing
+  </Card>
+  
+  <Card title="Websocket" icon="comments">
+    Websocket connection testing
+  </Card>
+  
+  <Card title="WHOIS" icon="address-card">
+    Domain and IP WHOIS lookups
+  </Card>
+  
+  <Card title="File" icon="file">
+    Local file system scanning
+  </Card>
+  
+  <Card title="Headless" icon="window-maximize">
+    Browser-based testing with Chrome/Chromium
+  </Card>
+  
+  <Card title="Code" icon="code">
+    Multi-language code execution (Go, Python, etc.)
+  </Card>
+  
+  <Card title="JavaScript" icon="js">
+    JavaScript-based network protocol implementations
+  </Card>
+</CardGroup>
+
+## HTTP protocol
+
+The most commonly used protocol for web application security testing.
+
+### Basic HTTP request
+
+```yaml
+id: basic-http-example
+
+info:
+  name: Basic HTTP Request
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+      - "{{BaseURL}}/dashboard"
+    
+    headers:
+      User-Agent: "Nuclei Scanner"
+      X-Custom-Header: "test"
+    
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 403
+```
+
+### Raw HTTP requests
+
+For precise control over HTTP requests:
+
+```yaml raw-get-query.yaml
+id: basic-raw-query-example
+
+info:
+  name: Test RAW GET Query Template
+  author: pdteam
+  severity: info
+
+http:
+  - raw:
+      - |
+        GET ?test=nuclei HTTP/1.1
+        Host: {{Hostname}}
+        Origin: {{BaseURL}}
+
+    matchers:
+      - type: word
+        words:
+          - "Test is test raw-get-query-matcher text"
+```
+
+### POST requests with JSON
+
+```yaml post-json-body.yaml
+id: basic-post-json-body
+
+info:
+  name: Basic POST JSON Body Request
+  author: pdteam
+  severity: info
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}"
+    headers: 
+      Content-Type: application/json
+      Content-Length: 1
+    body: '{"username":"test","password":"nuclei"}'
+    matchers:
+      - type: word
+        words:
+          - "This is test post-json-body matcher text"
+```
+
+<Note>
+HTTP protocol supports GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods and can handle cookies, redirects, and authentication.
+</Note>
+
+## DNS protocol
+
+DNS queries for subdomain enumeration and DNS-based detection.
+
+### DNS query types
+
+<Tabs>
+  <Tab title="A Record">
+    ```yaml dns/a.yaml
+    id: dns-a-query-example
+    
+    info:
+      name: Test DNS A Query Template
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: A
+        class: inet
+        recursion: true
+        retries: 3
+        matchers:
+          - type: word
+            words:
+              - "1.1.1.1"
+    ```
+  </Tab>
+  
+  <Tab title="CNAME Record">
+    ```yaml
+    id: dns-cname-query
+    
+    info:
+      name: DNS CNAME Query
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: CNAME
+        class: inet
+        recursion: true
+        matchers:
+          - type: word
+            words:
+              - "cloudfront.net"
+    ```
+  </Tab>
+  
+  <Tab title="TXT Record">
+    ```yaml
+    id: dns-txt-query
+    
+    info:
+      name: DNS TXT Record Query
+      author: pdteam
+      severity: info
+    
+    dns:
+      - name: "{{FQDN}}"
+        type: TXT
+        class: inet
+        matchers:
+          - type: regex
+            regex:
+              - "v=spf1.*"
+    ```
+  </Tab>
+</Tabs>
+
+### Supported DNS record types
+
+- `A` - IPv4 address records
+- `AAAA` - IPv6 address records
+- `CNAME` - Canonical name records
+- `NS` - Name server records
+- `TXT` - Text records
+- `MX` - Mail exchange records
+- `PTR` - Pointer records
+- `SRV` - Service records
+- `SOA` - Start of authority
+- `CAA` - Certificate authority authorization
+- `TLSA` - TLSA certificate association
+
+## Network (TCP) protocol
+
+Raw TCP socket connections for testing network services.
+
+```yaml network/basic.yaml
+id: basic-network-request
+
+info:
+  name: Basic Network Request
+  author: pdteam
+  severity: info
+
+network:
+  - host: 
+      - "{{Hostname}}"
+    inputs:
+      - data: "PING\r\n"
+    read-size: 4
+    matchers:
+      - type: word
+        part: data
+        words:
+          - "PONG"
+```
+
+### Multi-step network requests
+
+```yaml
+id: multi-step-network
+
+info:
+  name: Multi-Step Network Protocol
+  author: pdteam
+  severity: info
+
+network:
+  - host:
+      - "{{Hostname}}:{{Port}}"
+    
+    inputs:
+      - data: "HELLO\r\n"
+      - data: "AUTH admin\r\n"
+      - data: "QUERY\r\n"
+    
+    read-size: 1024
+    
+    matchers:
+      - type: word
+        words:
+          - "OK AUTHENTICATED"
+```
+
+<Warning>
+Network protocol requires explicit host and port specification. Use `{{Hostname}}:{{Port}}` for dynamic targets.
+</Warning>
+
+## SSL/TLS protocol
+
+SSL/TLS certificate and configuration testing.
+
+```yaml ssl/basic.yaml
+id: basic-ssl
+
+info:
+  name: Basic SSL Request
+  author: pdteam
+  severity: info
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+```
+
+### SSL certificate validation
+
+```yaml
+id: ssl-cert-check
+
+info:
+  name: SSL Certificate Validation
+  author: pdteam
+  severity: medium
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "contains(subject_cn, 'example.com')"
+          - "not_after > now()"
+        condition: and
+      
+      - type: word
+        words:
+          - "TLS 1.0"
+          - "TLS 1.1"
+        condition: or
+```
+
+## Websocket protocol
+
+Websocket connection and message testing.
+
+```yaml websocket/basic.yaml
+id: basic-request
+
+info:
+  name: Basic Request
+  author: pdteam
+  severity: info
+
+websocket:
+  - address: '{{Scheme}}://{{Hostname}}'
+    inputs:
+      - data: hello
+    matchers:
+      - type: word
+        words:
+          - world
+        part: response
+```
+
+## WHOIS protocol
+
+Domain and IP WHOIS information retrieval.
+
+```yaml
+id: whois-query
+
+info:
+  name: WHOIS Information Query
+  author: pdteam
+  severity: info
+
+whois:
+  - query: "{{FQDN}}"
+    matchers:
+      - type: regex
+        regex:
+          - "Registrar: GoDaddy"
+```
+
+## File protocol
+
+Local file system scanning for sensitive files and configurations.
+
+```yaml
+id: file-check
+
+info:
+  name: Local File Check
+  author: pdteam
+  severity: medium
+
+file:
+  - extensions:
+      - all
+    
+    extractors:
+      - type: regex
+        regex:
+          - "(?i)password\\s*=\\s*['\"]([^'\"]+)"
+```
+
+<Note>
+File protocol requires the `-l` flag with a file path or directory to scan.
+</Note>
+
+## Headless protocol
+
+Browser automation for JavaScript-heavy applications.
+
+```yaml
+id: headless-example
+
+info:
+  name: Headless Browser Test
+  author: pdteam
+  severity: info
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}"
+      
+      - action: waitload
+      
+      - action: click
+        args:
+          by: xpath
+          xpath: '//button[@id="submit"]'
+      
+      - action: screenshot
+    
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Success"
+```
+
+<Warning>
+Headless protocol requires Chrome/Chromium and must be enabled with `-headless` flag.
+</Warning>
+
+## Code protocol
+
+Multi-language code execution for cloud and infrastructure checks.
+
+```yaml
+id: code-example
+
+info:
+  name: Code Protocol Example
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - go
+      - python
+    
+    source: |
+      package main
+      import "fmt"
+      
+      func main() {
+        // Custom security check logic
+        fmt.Println("Check result")
+      }
+```
+
+<Warning>
+Code protocol templates must be digitally signed and require `-code` flag to execute.
+</Warning>
+
+## JavaScript protocol
+
+JavaScript-based network protocol implementations.
+
+```yaml
+id: javascript-example
+
+info:
+  name: JavaScript Protocol
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      let conn = new net.Open('tcp', Host + ':' + Port);
+      conn.Send('PING\r\n');
+      let resp = conn.RecvString();
+      log(resp);
+    
+    matchers:
+      - type: word
+        words:
+          - "PONG"
+```
+
+## Protocol comparison
+
+| Protocol | Use case | Authentication | Multi-step |
+|----------|----------|----------------|------------|
+| HTTP | Web applications | Yes | Yes |
+| DNS | Domain enumeration | No | No |
+| Network | Network services | Manual | Yes |
+| SSL | Certificate testing | No | No |
+| Websocket | Real-time apps | Yes | Yes |
+| WHOIS | Domain info | No | No |
+| File | Local scanning | N/A | No |
+| Headless | JavaScript apps | Yes | Yes |
+| Code | Infrastructure | N/A | Yes |
+| JavaScript | Custom protocols | Manual | Yes |
+
+## Protocol selection guide
+
+<Steps>
+  <Step title="Identify target">
+    Determine what you're testing - web app, network service, or infrastructure
+  </Step>
+  
+  <Step title="Choose protocol">
+    Select the protocol that best matches your target's communication method
+  </Step>
+  
+  <Step title="Check requirements">
+    Verify if special flags or setup are needed (headless, code signing, etc.)
+  </Step>
+  
+  <Step title="Build template">
+    Create template using protocol-specific syntax and operators
+  </Step>
+</Steps>
+
+## Multi-protocol templates
+
+Combine multiple protocols for comprehensive testing:
+
+```yaml
+id: multi-protocol-template
+
+info:
+  name: Multi-Protocol Security Check
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    extractors:
+      - type: regex
+        name: ip_address
+        internal: true
+        regex:
+          - "([0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})"
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+    matchers:
+      - type: word
+        words:
+          - "{{ip_address}}"
+
+network:
+  - host:
+      - "{{ip_address}}:443"
+    inputs:
+      - data: "PING\r\n"
+```
+
+## Related topics
+
+<CardGroup cols={3}>
+  <Card title="Templates" href="/concepts/templates" icon="file-code">
+    Template structure basics
+  </Card>
+  
+  <Card title="Matchers" href="/concepts/matchers-extractors" icon="filter">
+    Protocol-specific matchers
+  </Card>
+  
+  <Card title="Operators" href="/concepts/operators" icon="gears">
+    Using operators with protocols
+  </Card>
+</CardGroup>

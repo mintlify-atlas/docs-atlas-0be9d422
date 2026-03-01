@@ -1,0 +1,618 @@
+---
+title: SSL/TLS protocol templates
+description: Create SSL/TLS templates for certificate validation and TLS security testing
+---
+
+SSL/TLS protocol templates allow you to inspect SSL/TLS certificates, test cipher suites, detect vulnerabilities, and validate TLS configurations.
+
+## Basic SSL request
+
+A simple SSL probe to check certificate information:
+
+```yaml
+id: basic-ssl-probe
+
+info:
+  name: Basic SSL Certificate Check
+  author: pdteam
+  severity: info
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+```
+
+## SSL request components
+
+### Address
+
+<ParamField path="address" type="string" required>
+  Target host and port to probe. Uses `{{Host}}:{{Port}}` for dynamic targeting.
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+  ```
+  
+  Or specify explicitly:
+  ```yaml
+  ssl:
+    - address: "example.com:443"
+  ```
+</ParamField>
+
+## TLS version control
+
+### Minimum version
+
+<ParamField path="min_version" type="string">
+  Minimum TLS version to use.
+  
+  **Options**: `sslv3`, `tls10`, `tls11`, `tls12`, `tls13`
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      min_version: tls12
+  ```
+</ParamField>
+
+### Maximum version
+
+<ParamField path="max_version" type="string">
+  Maximum TLS version to allow.
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      max_version: tls12
+  ```
+</ParamField>
+
+### Test for specific TLS versions
+
+```yaml
+id: tls10-detection
+
+info:
+  name: TLS 1.0 Detection
+  author: pdteam
+  severity: low
+  description: Detects servers still supporting deprecated TLS 1.0
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    min_version: tls10
+    max_version: tls10
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "tls_version == 'tls10'"
+        condition: and
+```
+
+## Cipher suite testing
+
+### Specific ciphers
+
+<ParamField path="cipher_suites" type="array">
+  List of cipher suites to test.
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      cipher_suites:
+        - "TLS_RSA_WITH_RC4_128_SHA"
+        - "TLS_RSA_WITH_3DES_EDE_CBC_SHA"
+  ```
+</ParamField>
+
+### Enumerate ciphers
+
+<ParamField path="tls_cipher_enum" type="boolean" default={false}>
+  Enumerate all supported cipher suites.
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      tls_cipher_enum: true
+      tls_cipher_types:
+        - insecure
+        - weak
+  ```
+</ParamField>
+
+<ParamField path="tls_cipher_types" type="array">
+  Types of ciphers to enumerate.
+  
+  **Options**: `insecure`, `weak`, `secure`, `all`
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      tls_cipher_enum: true
+      tls_cipher_types:
+        - insecure
+        - weak
+  ```
+</ParamField>
+
+## Version enumeration
+
+<ParamField path="tls_version_enum" type="boolean" default={false}>
+  Enumerate all supported TLS versions.
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      tls_version_enum: true
+  ```
+</ParamField>
+
+## Scan modes
+
+<ParamField path="scan_mode" type="string">
+  TLS scanning mode.
+  
+  **Options**: `auto`, `ctls`, `ztls`, `openssl`
+  
+  ```yaml
+  ssl:
+    - address: "{{Host}}:{{Port}}"
+      scan_mode: ztls
+  ```
+</ParamField>
+
+## SSL response data
+
+SSL templates expose extensive certificate and connection data:
+
+### Certificate information
+
+<ResponseField name="subject_cn" type="string">
+  Certificate subject common name
+  
+  ```yaml
+  extractors:
+    - type: dsl
+      dsl:
+        - subject_cn
+  ```
+</ResponseField>
+
+<ResponseField name="subject_org" type="string">
+  Certificate subject organization
+</ResponseField>
+
+<ResponseField name="subject_dn" type="string">
+  Certificate subject distinguished name
+</ResponseField>
+
+<ResponseField name="issuer_cn" type="string">
+  Certificate issuer common name
+</ResponseField>
+
+<ResponseField name="issuer_org" type="string">
+  Certificate issuer organization
+</ResponseField>
+
+<ResponseField name="issuer_dn" type="string">
+  Certificate issuer distinguished name
+</ResponseField>
+
+### Validity period
+
+<ResponseField name="not_before" type="timestamp">
+  Certificate validity start date
+  
+  ```yaml
+  matchers:
+    - type: dsl
+      dsl:
+        - "not_before > now()"
+  ```
+</ResponseField>
+
+<ResponseField name="not_after" type="timestamp">
+  Certificate expiration date
+  
+  ```yaml
+  matchers:
+    - type: dsl
+      dsl:
+        - "(not_after - now()) < 2592000"  # Expires in 30 days
+  ```
+</ResponseField>
+
+### Other fields
+
+<ResponseField name="serial" type="string">
+  Certificate serial number
+</ResponseField>
+
+<ResponseField name="fingerprint_hash" type="string">
+  Certificate fingerprint hash
+</ResponseField>
+
+<ResponseField name="domains" type="array">
+  List of domains in certificate (CN + SANs)
+</ResponseField>
+
+<ResponseField name="cipher" type="string">
+  Negotiated cipher suite
+</ResponseField>
+
+<ResponseField name="tls_version" type="string">
+  Negotiated TLS version
+</ResponseField>
+
+<ResponseField name="tls_connection" type="string">
+  TLS connection type
+</ResponseField>
+
+<ResponseField name="probe_status" type="boolean">
+  Whether the SSL probe succeeded
+</ResponseField>
+
+## Example: Certificate expiration check
+
+```yaml
+id: ssl-cert-expiring
+
+info:
+  name: SSL Certificate Expiring Soon
+  author: pdteam
+  severity: medium
+  description: Detects SSL certificates expiring within 30 days
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "(not_after - now()) < 2592000"  # 30 days in seconds
+        condition: and
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - subject_cn
+          - '(not_after - now()) / 86400'  # Days until expiration
+```
+
+## Example: Self-signed certificate detection
+
+```yaml
+id: ssl-self-signed
+
+info:
+  name: Self-Signed SSL Certificate
+  author: pdteam
+  severity: low
+  description: Detects self-signed SSL certificates
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "subject_dn == issuer_dn"
+        condition: and
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - subject_cn
+          - issuer_cn
+```
+
+## Example: Weak cipher detection
+
+```yaml
+id: ssl-weak-cipher
+
+info:
+  name: Weak SSL Cipher Suite
+  author: pdteam
+  severity: medium
+  description: Detects use of weak or insecure cipher suites
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    tls_cipher_enum: true
+    tls_cipher_types:
+      - insecure
+      - weak
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+    
+    extractors:
+      - type: dsl
+        name: weak_ciphers
+        dsl:
+          - cipher
+```
+
+## Example: Multiple TLS versions
+
+```yaml
+id: ssl-multi-version-check
+
+info:
+  name: TLS Version Support Matrix
+  author: pdteam
+  severity: info
+  description: Checks which TLS versions are supported
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    min_version: tls10
+    max_version: tls10
+  
+  - address: "{{Host}}:{{Port}}"
+    min_version: tls11
+    max_version: tls11
+  
+  - address: "{{Host}}:{{Port}}"
+    min_version: tls12
+    max_version: tls12
+  
+  - address: "{{Host}}:{{Port}}"
+    min_version: tls13
+    max_version: tls13
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - tls_version
+```
+
+## Example: Domain validation
+
+```yaml
+id: ssl-domain-mismatch
+
+info:
+  name: SSL Certificate Domain Mismatch
+  author: pdteam
+  severity: medium
+  description: Detects SSL certificates with domain mismatches
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "!contains(domains, Host)"
+        condition: and
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - subject_cn
+          - 'join(",", domains)'
+```
+
+## Matchers for SSL
+
+### DSL matchers
+
+Most SSL matching is done with DSL:
+
+```yaml
+matchers:
+  # Check if probe succeeded
+  - type: dsl
+    dsl:
+      - "probe_status == true"
+  
+  # Check TLS version
+  - type: dsl
+    dsl:
+      - "tls_version == 'tls13'"
+  
+  # Check cipher
+  - type: dsl
+    dsl:
+      - "contains(cipher, 'AES')"
+  
+  # Check expiration
+  - type: dsl
+    dsl:
+      - "(not_after - now()) < 86400"  # Less than 1 day
+  
+  # Check self-signed
+  - type: dsl
+    dsl:
+      - "subject_dn == issuer_dn"
+  
+  # Check organization
+  - type: dsl
+    dsl:
+      - "contains(tolower(subject_org), 'test')"
+```
+
+## Extractors for SSL
+
+```yaml
+extractors:
+  # Extract subject CN
+  - type: dsl
+    name: certificate_cn
+    dsl:
+      - subject_cn
+  
+  # Extract all domains
+  - type: dsl
+    name: certificate_domains
+    dsl:
+      - 'join(",", domains)'
+  
+  # Extract days until expiration
+  - type: dsl
+    name: days_until_expiry
+    dsl:
+      - '(not_after - now()) / 86400'
+  
+  # Extract issuer
+  - type: dsl
+    name: issuer
+    dsl:
+      - issuer_org
+  
+  # Extract TLS info
+  - type: dsl
+    name: tls_info
+    dsl:
+      - 'tls_version + " - " + cipher'
+```
+
+## Complete examples
+
+<CodeGroup>
+```yaml Expired Certificate
+id: ssl-cert-expired
+
+info:
+  name: Expired SSL Certificate
+  author: pdteam
+  severity: high
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "not_after < now()"
+        condition: and
+```
+
+```yaml Weak TLS
+id: ssl-weak-tls
+
+info:
+  name: Weak TLS Configuration
+  author: pdteam
+  severity: high
+  description: Detects TLS 1.0/1.1 support
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    tls_version_enum: true
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+          - "tls_version == 'tls10' || tls_version == 'tls11'"
+        condition: and
+```
+
+```yaml Certificate Chain
+id: ssl-cert-info
+
+info:
+  name: SSL Certificate Information
+  author: pdteam
+  severity: info
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "probe_status == true"
+    
+    extractors:
+      - type: dsl
+        dsl:
+          - subject_cn
+          - subject_org
+          - issuer_cn
+          - issuer_org
+          - tls_version
+          - cipher
+```
+</CodeGroup>
+
+## Testing tips
+
+<AccordionGroup>
+  <Accordion title="Test SSL templates">
+    Use `-debug` for detailed SSL information:
+    
+    ```bash
+    nuclei -t ssl-template.yaml -u example.com:443 -debug
+    ```
+  </Accordion>
+  
+  <Accordion title="Scan multiple ports">
+    ```bash
+    echo "example.com:443" | nuclei -t ssl-template.yaml
+    echo "example.com:8443" | nuclei -t ssl-template.yaml
+    ```
+  </Accordion>
+  
+  <Accordion title="Check local services">
+    ```bash
+    nuclei -t ssl-template.yaml -u localhost:443
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common use cases
+
+<CardGroup cols={2}>
+  <Card title="Expiration monitoring" icon="calendar">
+    Alert on certificates expiring soon
+  </Card>
+  <Card title="Weak crypto" icon="shield-xmark">
+    Detect outdated TLS versions and ciphers
+  </Card>
+  <Card title="Self-signed certs" icon="certificate">
+    Identify self-signed certificates
+  </Card>
+  <Card title="Domain validation" icon="check-double">
+    Verify certificate matches hostname
+  </Card>
+</CardGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Network protocol" icon="server" href="/templates/protocols/network">
+    TCP-based service testing
+  </Card>
+  <Card title="Helper functions" icon="function" href="/templates/helper-functions">
+    DSL functions for SSL
+  </Card>
+  <Card title="Matchers" icon="filter" href="/templates/matchers">
+    Complete matcher reference
+  </Card>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Template quality guidelines
+  </Card>
+</CardGroup>

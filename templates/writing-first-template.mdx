@@ -1,0 +1,464 @@
+---
+title: Writing your first template
+description: Step-by-step guide to creating your first Nuclei template
+---
+
+This guide walks you through creating a functional Nuclei template from scratch. You'll learn by building a real template that detects exposed `.git/config` files.
+
+## What you'll build
+
+By the end of this tutorial, you'll have created a template that:
+
+- Sends an HTTP GET request to check for `.git/config`
+- Validates the response contains Git configuration markers
+- Reports findings with appropriate severity
+- Includes proper metadata for sharing
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install Nuclei">
+    ```bash
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    ```
+  </Step>
+  <Step title="Create working directory">
+    ```bash
+    mkdir ~/nuclei-templates-custom
+    cd ~/nuclei-templates-custom
+    ```
+  </Step>
+  <Step title="Create template file">
+    ```bash
+    touch git-config-exposure.yaml
+    ```
+  </Step>
+</Steps>
+
+## Step 1: Define template ID
+
+Open `git-config-exposure.yaml` in your editor and start with a unique identifier:
+
+```yaml
+id: git-config-exposure
+```
+
+<Tip>
+  Choose IDs that describe what the template detects. Use lowercase letters and hyphens.
+</Tip>
+
+## Step 2: Add metadata
+
+Add the `info` block with descriptive metadata:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: Detects publicly accessible .git/config files that expose repository information
+  tags: git,exposure,config
+```
+
+<ParamField path="info.name" type="string" required>
+  A clear, concise description that explains what the template detects
+</ParamField>
+
+<ParamField path="info.author" type="string" required>
+  Your GitHub username or name
+</ParamField>
+
+<ParamField path="info.severity" type="string" required>
+  Risk level: `info`, `low`, `medium`, `high`, or `critical`
+</ParamField>
+
+## Step 3: Add HTTP request
+
+Define what request to send:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: Detects publicly accessible .git/config files that expose repository information
+  tags: git,exposure,config
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+```
+
+<Note>
+  `{{BaseURL}}` is a built-in variable that contains the full target URL (e.g., `https://example.com`).
+</Note>
+
+## Step 4: Add matchers
+
+Define what constitutes a positive detection:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: Detects publicly accessible .git/config files that expose repository information
+  tags: git,exposure,config
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      
+      - type: status
+        status:
+          - 200
+```
+
+<Tabs>
+  <Tab title="Word matcher">
+    Searches for the `[core]` string that appears in Git config files:
+    
+    ```yaml
+    - type: word
+      words:
+        - "[core]"
+    ```
+  </Tab>
+  
+  <Tab title="Status matcher">
+    Ensures the request returned HTTP 200 (success):
+    
+    ```yaml
+    - type: status
+      status:
+        - 200
+    ```
+  </Tab>
+  
+  <Tab title="Condition">
+    `matchers-condition: and` requires **both** matchers to match:
+    
+    ```yaml
+    matchers-condition: and
+    ```
+    
+    Use `or` if any single matcher should trigger a match.
+  </Tab>
+</Tabs>
+
+## Step 5: Validate template
+
+Check your template for syntax errors:
+
+```bash
+nuclei -validate -t git-config-exposure.yaml
+```
+
+Successful validation output:
+
+```
+[INF] Templates validation completed.
+```
+
+<Warning>
+  If validation fails, check:
+  - YAML indentation (use 2 spaces, no tabs)
+  - All required fields are present
+  - Quotes around strings with special characters
+</Warning>
+
+## Step 6: Test the template
+
+### Test against a vulnerable target
+
+First, let's set up a test server with an exposed Git config:
+
+```bash
+# Create test directory
+mkdir -p /tmp/test-server/.git
+echo '[core]' > /tmp/test-server/.git/config
+echo 'repositoryformatversion = 0' >> /tmp/test-server/.git/config
+
+# Start simple HTTP server
+cd /tmp/test-server
+python3 -m http.server 8080
+```
+
+In another terminal, run Nuclei:
+
+```bash
+nuclei -t git-config-exposure.yaml -u http://localhost:8080
+```
+
+Expected output:
+
+```
+[git-config-exposure] [http] [medium] http://localhost:8080/.git/config
+```
+
+### Test against safe target
+
+```bash
+nuclei -t git-config-exposure.yaml -u https://example.com
+```
+
+No output (no match) is expected for sites without exposed Git configs.
+
+## Step 7: Enhance the template
+
+Let's improve the template with additional features:
+
+### Add negative matcher
+
+Avoid false positives by ensuring the response isn't HTML:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: Detects publicly accessible .git/config files that expose repository information
+  tags: git,exposure,config
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      
+      - type: word
+        words:
+          - "<html"
+          - "<body"
+        condition: or
+        negative: true
+      
+      - type: status
+        status:
+          - 200
+```
+
+<Note>
+  `negative: true` inverts the match - it succeeds when the words are **not** found.
+</Note>
+
+### Add extractor
+
+Extract the repository URL if present:
+
+```yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: Detects publicly accessible .git/config files that expose repository information
+  tags: git,exposure,config
+  reference:
+    - https://www.acunetix.com/vulnerabilities/web/git-repository-found/
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      
+      - type: word
+        words:
+          - "<html"
+          - "<body"
+        condition: or
+        negative: true
+      
+      - type: status
+        status:
+          - 200
+    
+    extractors:
+      - type: regex
+        name: repository-url
+        regex:
+          - 'url\s*=\s*(.+)'
+        group: 1
+```
+
+## Complete template
+
+Here's the final, production-ready template:
+
+```yaml git-config-exposure.yaml
+id: git-config-exposure
+
+info:
+  name: Git Config File Exposure
+  author: your-username
+  severity: medium
+  description: |
+    Detects publicly accessible .git/config files that expose repository
+    configuration and may reveal sensitive information about the codebase.
+  reference:
+    - https://www.acunetix.com/vulnerabilities/web/git-repository-found/
+    - https://github.com/internetwache/GitTools
+  classification:
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N
+    cvss-score: 5.3
+    cwe-id: CWE-200
+  tags: git,exposure,config,disclosure
+  metadata:
+    max-request: 1
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+          - "repositoryformatversion"
+        condition: or
+      
+      - type: word
+        words:
+          - "<html"
+          - "<body"
+        condition: or
+        negative: true
+      
+      - type: status
+        status:
+          - 200
+    
+    extractors:
+      - type: regex
+        name: repository-url
+        regex:
+          - 'url\s*=\s*(.+)'
+        group: 1
+```
+
+## Running your template
+
+### Single target
+
+```bash
+nuclei -t git-config-exposure.yaml -u https://example.com
+```
+
+### Multiple targets
+
+```bash
+# From file
+nuclei -t git-config-exposure.yaml -l targets.txt
+
+# From stdin
+cat targets.txt | nuclei -t git-config-exposure.yaml
+```
+
+### With output
+
+```bash
+# JSON output
+nuclei -t git-config-exposure.yaml -l targets.txt -json -o results.json
+
+# Markdown report
+nuclei -t git-config-exposure.yaml -l targets.txt -markdown-export report.md
+```
+
+## Common issues and solutions
+
+<AccordionGroup>
+  <Accordion title="Template not matching when it should">
+    **Problem**: The template doesn't detect vulnerable targets.
+    
+    **Solutions**:
+    - Test matchers individually by removing `matchers-condition`
+    - Use `-debug` flag to see full responses
+    - Check if response is being truncated (adjust `max-size`)
+    - Verify matcher `part` is correct (default is `body`)
+  </Accordion>
+  
+  <Accordion title="Too many false positives">
+    **Problem**: Template matches non-vulnerable targets.
+    
+    **Solutions**:
+    - Add negative matchers to exclude common false positives
+    - Use `matchers-condition: and` for stricter matching
+    - Add status code validation
+    - Check content-type headers
+  </Accordion>
+  
+  <Accordion title="Validation errors">
+    **Problem**: `nuclei -validate` shows errors.
+    
+    **Solutions**:
+    - Check YAML indentation (2 spaces, no tabs)
+    - Ensure all strings with special chars are quoted
+    - Verify all required fields are present
+    - Use YAML linter for syntax checking
+  </Accordion>
+</AccordionGroup>
+
+## Best practices learned
+
+<Check>
+  ✓ Use descriptive template IDs
+  
+  ✓ Include detailed metadata (description, references)
+  
+  ✓ Combine multiple matchers with `and` for accuracy
+  
+  ✓ Use negative matchers to reduce false positives
+  
+  ✓ Add extractors for useful information
+  
+  ✓ Validate before testing
+  
+  ✓ Test against both vulnerable and safe targets
+</Check>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Template structure" icon="sitemap" href="/templates/template-structure">
+    Learn about all template components in detail
+  </Card>
+  <Card title="HTTP protocol" icon="globe" href="/templates/protocols/http">
+    Explore advanced HTTP features
+  </Card>
+  <Card title="Matchers reference" icon="filter" href="/templates/matchers">
+    Master all matcher types
+  </Card>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Write production-quality templates
+  </Card>
+</CardGroup>

@@ -1,0 +1,493 @@
+---
+title: Interactsh OAST testing
+description: Detect out-of-band vulnerabilities using Nuclei's Interactsh integration for DNS, HTTP, and SMTP interactions
+---
+
+Interactsh is a powerful Out-Of-Band Application Security Testing (OAST) tool that enables detection of vulnerabilities that don't have direct responses. Nuclei has built-in integration with Interactsh for automated OOB testing.
+
+## Overview
+
+Interactsh works by generating unique URLs that you can inject into requests. When a vulnerable application makes requests to these URLs (DNS lookups, HTTP requests, etc.), Interactsh captures the interaction and reports it back to Nuclei.
+
+<Note>
+Nuclei automatically manages Interactsh URLs, polling for interactions, and correlating them with template executions.
+</Note>
+
+## How it works
+
+<Steps>
+
+### Generate unique URL
+
+Nuclei generates a unique Interactsh URL using the `{{interactsh-url}}` placeholder.
+
+### Inject into request
+
+The URL is injected into the request (query parameter, header, body, etc.).
+
+### Application makes callback
+
+If vulnerable, the target application makes a request to the Interactsh server.
+
+### Nuclei detects interaction
+
+Nuclei polls the Interactsh server and detects the interaction, marking the template as matched.
+
+</Steps>
+
+## Basic usage
+
+### Simple SSRF detection
+
+```yaml
+id: ssrf-interactsh
+
+info:
+  name: Server-Side Request Forgery
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/fetch?url={{interactsh-url}}"
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+```
+
+### Blind command injection
+
+```yaml
+id: blind-cmdi
+
+info:
+  name: Blind command injection
+  author: pdteam
+  severity: critical
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/exec"
+    
+    body: 'cmd=ping -c 4 {{interactsh-url}}'
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "dns"
+```
+
+## Interactsh placeholders
+
+Nuclei supports several Interactsh-related placeholders:
+
+### Available placeholders
+
+- `{{interactsh-url}}` - Full Interactsh URL (e.g., `c59h4i9vrc7d5o61jkm0gq3r5b6qzz.oast.fun`)
+- `{{interactsh-id}}` - Unique identifier portion only (e.g., `c59h4i9vrc7d5o61jkm0gq3r5b6qzz`)
+- `{{interactsh-server}}` - Server domain only (e.g., `oast.fun`)
+
+```yaml
+http:
+  - raw:
+      - |
+        POST /api/webhook HTTP/1.1
+        Host: {{Hostname}}
+        Content-Type: application/json
+        
+        {
+          "url": "http://{{interactsh-url}}",
+          "subdomain": "{{interactsh-id}}",
+          "server": "{{interactsh-server}}"
+        }
+```
+
+## Interaction data
+
+When an interaction is detected, Nuclei exposes several variables:
+
+### Available variables
+
+- `interactsh_protocol` - Protocol used (dns, http, smtp, ldap)
+- `interactsh_request` - Raw request received
+- `interactsh_response` - Raw response sent
+- `interactsh_ip` - Remote IP address
+
+### Matching on interaction data
+
+```yaml
+id: ssrf-with-data
+
+info:
+  name: SSRF with interaction data validation
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/fetch?url=http://{{interactsh-url}}/secret"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+      
+      - type: word
+        part: interactsh_request
+        words:
+          - "GET /secret"
+      
+      - type: regex
+        part: interactsh_ip
+        regex:
+          - "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}"
+```
+
+## Protocol-specific detection
+
+### DNS interactions
+
+Detect DNS-based exfiltration or blind vulnerabilities:
+
+```yaml
+id: dns-exfiltration
+
+info:
+  name: DNS exfiltration detection
+  author: pdteam
+  severity: medium
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/api/lookup"
+    
+    body: 'hostname={{interactsh-url}}'
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "dns"
+      
+      - type: regex
+        part: interactsh_request
+        regex:
+          - "(?i)(A|AAAA|CNAME)"
+```
+
+### HTTP interactions
+
+Detect SSRF and callback-based vulnerabilities:
+
+```yaml
+id: http-callback
+
+info:
+  name: HTTP callback detection
+  author: pdteam
+  severity: high
+
+http:
+  - raw:
+      - |
+        POST /api/image HTTP/1.1
+        Host: {{Hostname}}
+        Content-Type: application/json
+        
+        {"url": "http://{{interactsh-url}}/image.png"}
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+```
+
+### SMTP interactions
+
+Detect email-based callbacks:
+
+```yaml
+id: smtp-injection
+
+info:
+  name: SMTP injection via Interactsh
+  author: pdteam
+  severity: medium
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/contact"
+    
+    body: 'email=test@{{interactsh-url}}&message=test'
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "smtp"
+```
+
+### LDAP interactions
+
+Detect LDAP injection:
+
+```yaml
+id: ldap-injection
+
+info:
+  name: LDAP injection detection
+  author: pdteam
+  severity: high
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/auth"
+    
+    body: 'username=admin)(objectClass=*))(&(objectClass=*))(cn={{interactsh-url}}'
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "ldap"
+```
+
+## Advanced techniques
+
+### Multiple Interactsh URLs
+
+Use multiple URLs to track different injection points:
+
+```yaml
+id: multiple-interactsh
+
+info:
+  name: Multiple injection point tracking
+  author: pdteam
+  severity: high
+
+http:
+  - raw:
+      - |
+        POST /api/process HTTP/1.1
+        Host: {{Hostname}}
+        X-Callback: {{interactsh-url}}
+        Content-Type: application/json
+        
+        {
+          "url": "{{interactsh-url}}",
+          "webhook": "{{interactsh-url}}"
+        }
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+```
+
+### Conditional matching
+
+Combine direct response and interaction matching:
+
+```yaml
+id: conditional-oast
+
+info:
+  name: Conditional OAST testing
+  author: pdteam
+  severity: high
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/redirect?url={{interactsh-url}}"
+    
+    matchers-condition: or
+    matchers:
+      - type: status
+        status:
+          - 302
+      
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+```
+
+### Extracting data from interactions
+
+```yaml
+id: extract-from-interaction
+
+info:
+  name: Extract data from OAST interaction
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api?url={{interactsh-url}}/{{rand_base(8)}}"
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "http"
+    
+    extractors:
+      - type: regex
+        part: interactsh_request
+        regex:
+          - "User-Agent: (.*)"
+```
+
+## Configuration options
+
+### Using custom Interactsh server
+
+```bash
+nuclei -t template.yaml -u https://example.com -interactsh-server custom.oast.fun
+```
+
+### Authentication
+
+For self-hosted Interactsh servers with authentication:
+
+```bash
+nuclei -t template.yaml -u https://example.com -interactsh-token YOUR_TOKEN
+```
+
+### Polling configuration
+
+```bash
+# Set custom poll duration (default: 5s)
+nuclei -t template.yaml -u https://example.com -interactsh-poll-duration 10
+
+# Set custom eviction time (default: 60s)
+nuclei -t template.yaml -u https://example.com -interactsh-eviction 120
+```
+
+### Cooldown period
+
+Wait for delayed interactions before closing:
+
+```bash
+nuclei -t template.yaml -u https://example.com -interactsh-cooldown-period 30
+```
+
+## Debugging interactions
+
+Enable debug mode to see interaction details:
+
+```bash
+nuclei -t template.yaml -u https://example.com -debug
+```
+
+Example debug output:
+
+```
+[c59h4i9vrc7d5o61jkm0] Received HTTP interaction from 203.0.113.42 at 2024-03-01 10:30:45
+------------
+HTTP Request
+------------
+
+GET /image.png HTTP/1.1
+Host: c59h4i9vrc7d5o61jkm0.oast.fun
+User-Agent: curl/7.68.0
+```
+
+## Best practices
+
+<Steps>
+
+### Use descriptive URLs
+
+Include context in the path to identify the injection point:
+
+```yaml
+path:
+  - "{{BaseURL}}/api?callback=http://{{interactsh-url}}/ssrf-test"
+```
+
+### Always specify protocol
+
+Be explicit about which protocol you expect:
+
+```yaml
+matchers:
+  - type: word
+    part: interactsh_protocol
+    words:
+      - "http"  # Only match HTTP interactions
+```
+
+### Combine with other matchers
+
+Use `matchers-condition: and` to reduce false positives:
+
+```yaml
+matchers-condition: and
+matchers:
+  - type: status
+    status:
+      - 200
+  
+  - type: word
+    part: interactsh_protocol
+    words:
+      - "http"
+```
+
+### Handle delayed interactions
+
+Some applications may callback with delay. Use cooldown period:
+
+```bash
+nuclei -t template.yaml -u target.com -interactsh-cooldown-period 60
+```
+
+</Steps>
+
+<Warning>
+Interactsh interactions may take time to arrive. Ensure adequate cooldown period for reliable detection of delayed callbacks.
+</Warning>
+
+## Disabling Interactsh
+
+To disable Interactsh for specific scans:
+
+```bash
+nuclei -t templates/ -u https://example.com -no-interactsh
+```
+
+## Common use cases
+
+- **SSRF detection** - Server-side request forgery
+- **Blind CMDI** - Command injection without output
+- **XXE detection** - XML external entity attacks
+- **Log4Shell** - JNDI injection detection
+- **DNS rebinding** - DNS-based attacks
+- **Email injection** - SMTP header injection
+- **Cloud metadata SSRF** - Cloud service vulnerabilities
+
+## Related documentation
+
+- [HTTP Protocol](/templates/protocols/http)
+- [Matchers](/templates/reference/matchers)
+- [Fuzzing](/advanced/fuzzing-dast)

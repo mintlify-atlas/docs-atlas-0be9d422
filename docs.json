@@ -1,122 +1,175 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Nuclei",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#00DC82",
+    "light": "#7EE787",
+    "dark": "#00A86B"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/projectdiscovery/nuclei"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/projectdiscovery/nuclei",
+      "discord": "https://discord.gg/projectdiscovery"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
+              "introduction",
+              "installation",
               "quickstart",
-              "development"
+              "key-features"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/templates",
+              "concepts/workflows",
+              "concepts/protocols",
+              "concepts/operators",
+              "concepts/matchers-extractors"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Using Nuclei",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "usage/running-scans",
+              "usage/target-specification",
+              "usage/template-selection",
+              "usage/filtering-templates",
+              "usage/output-options",
+              "usage/rate-limiting"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Configuration",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "configuration/config-file",
+              "configuration/environment-variables",
+              "configuration/reporting-integrations",
+              "configuration/authentication"
+            ]
+          },
+          {
+            "group": "Advanced Features",
+            "pages": [
+              "advanced/fuzzing-dast",
+              "advanced/interactsh",
+              "advanced/cloud-integration",
+              "advanced/headless-browser",
+              "advanced/custom-dsl"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Template Development",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Getting Started with Templates",
             "pages": [
-              "api-reference/introduction"
+              "templates/introduction",
+              "templates/syntax-overview",
+              "templates/writing-first-template",
+              "templates/template-structure"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Protocol Types",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "templates/protocols/http",
+              "templates/protocols/dns",
+              "templates/protocols/network",
+              "templates/protocols/ssl",
+              "templates/protocols/websocket",
+              "templates/protocols/whois",
+              "templates/protocols/javascript",
+              "templates/protocols/code",
+              "templates/protocols/file"
+            ]
+          },
+          {
+            "group": "Template Features",
+            "pages": [
+              "templates/matchers",
+              "templates/extractors",
+              "templates/variables",
+              "templates/helper-functions",
+              "templates/workflows",
+              "templates/flow-control"
+            ]
+          },
+          {
+            "group": "Template Best Practices",
+            "pages": [
+              "templates/best-practices",
+              "templates/validation",
+              "templates/signing",
+              "templates/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK & Library",
+        "groups": [
+          {
+            "group": "Library Usage",
+            "pages": [
+              "sdk/overview",
+              "sdk/installation",
+              "sdk/basic-usage",
+              "sdk/advanced-usage",
+              "sdk/configuration-options"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "sdk/api/nuclei-engine",
+              "sdk/api/template-filters",
+              "sdk/api/callbacks",
+              "sdk/api/options"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "resources/template-library",
+              "resources/examples",
+              "resources/use-cases",
+              "resources/contributing"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "resources/troubleshooting",
+              "resources/faq",
+              "resources/migration-guide",
+              "resources/changelog"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

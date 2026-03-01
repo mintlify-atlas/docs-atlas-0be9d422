@@ -1,0 +1,452 @@
+---
+title: Workflows
+description: Multi-step template execution and conditional logic
+---
+
+Workflows enable multi-step vulnerability detection by chaining multiple templates together with conditional logic. They allow you to build complex detection scenarios where subsequent templates execute based on previous results.
+
+## What are workflows?
+
+Workflows are templates that orchestrate the execution of other templates. Instead of defining protocol requests directly, workflows specify which templates to run and in what order.
+
+```yaml workflow/basic.yaml
+id: workflow-example
+
+info:
+  name: Test Workflow Template
+  author: pdteam
+  severity: info
+
+workflows:
+  - template: workflow/match-1.yaml
+  - template: workflow/match-2.yaml
+```
+
+<Note>
+Workflows are identified by the `workflows` field instead of protocol-specific fields like `http`, `dns`, or `network`.
+</Note>
+
+## Basic workflow structure
+
+A workflow consists of multiple workflow templates that execute in sequence:
+
+```yaml
+id: basic-security-workflow
+
+info:
+  name: Basic Security Assessment Workflow
+  author: pdteam
+  severity: medium
+  description: Multi-stage security assessment
+
+workflows:
+  # Step 1: Check for basic vulnerabilities
+  - template: vulnerabilities/basic-xss.yaml
+  
+  # Step 2: Check for SQL injection
+  - template: vulnerabilities/sqli-detection.yaml
+  
+  # Step 3: Check for exposed files
+  - template: exposures/git-config.yaml
+```
+
+## Conditional execution
+
+Workflows support conditional execution based on matcher results from previous templates.
+
+### Subtemplates
+
+Execute templates only when a parent template matches:
+
+```yaml
+id: conditional-workflow
+
+info:
+  name: Conditional Template Execution
+  author: pdteam
+  severity: high
+
+workflows:
+  - template: tech-detect/wordpress-detect.yaml
+    subtemplates:
+      # Only run WordPress checks if WordPress is detected
+      - template: wordpress/wp-login-detect.yaml
+      - template: wordpress/wp-admin-exposure.yaml
+      - template: wordpress/xmlrpc-enabled.yaml
+```
+
+### Matcher-based conditions
+
+Execute different templates based on specific matcher names:
+
+```yaml
+id: matcher-based-workflow
+
+info:
+  name: Matcher Name Based Workflow
+  author: pdteam
+  severity: medium
+
+workflows:
+  - template: detection/cms-detection.yaml
+    matchers:
+      - name: wordpress
+        subtemplates:
+          - template: wordpress/wp-version-detect.yaml
+          - template: wordpress/wp-plugins-enum.yaml
+      
+      - name: drupal
+        subtemplates:
+          - template: drupal/drupal-version.yaml
+          - template: drupal/drupal-default-files.yaml
+      
+      - name: joomla
+        subtemplates:
+          - template: joomla/joomla-config-exposure.yaml
+```
+
+<Warning>
+Matcher names must be defined in the referenced template for matcher-based workflows to work correctly.
+</Warning>
+
+## Tag-based workflows
+
+Instead of specifying individual templates, you can execute all templates with specific tags:
+
+```yaml
+id: tag-based-workflow
+
+info:
+  name: Apache Security Assessment
+  author: pdteam
+  severity: high
+
+workflows:
+  # Run all templates tagged with 'apache'
+  - tags: apache,exposure
+  
+  # If exposures found, run CVE checks
+  - tags: apache,cve
+    matchers:
+      - name: apache-exposed
+```
+
+## Value sharing between templates
+
+Workflows can share extracted values between templates using internal extractors.
+
+### HTTP value sharing
+
+<CodeGroup>
+
+```yaml Template 1 (Extract)
+id: value-sharing-template1
+
+info:
+  name: value-sharing-template1
+  author: pdteam
+  severity: info
+
+http:
+  - path:
+      - "{{BaseURL}}/path1"
+    extractors:
+      - type: regex
+        part: body
+        name: extracted
+        regex:
+          - 'href="(.*)"'
+        group: 1
+```
+
+```yaml Template 2 (Use extracted value)
+id: value-sharing-template2
+
+info:
+  name: value-sharing-template2
+  author: pdteam
+  severity: info
+
+http:
+  - path:
+      - "{{BaseURL}}{{extracted}}"
+    matchers:
+      - type: status
+        status:
+          - 200
+```
+
+```yaml Workflow (Chain templates)
+id: http-value-sharing
+
+info:
+  name: HTTP Value Sharing Workflow
+  author: pdteam
+  severity: info
+
+workflows:
+  - template: http-value-share-template-1.yaml
+  - template: http-value-share-template-2.yaml
+```
+
+</CodeGroup>
+
+### Multi-protocol value sharing
+
+Share values across different protocols:
+
+```yaml
+id: multiprotocol-workflow
+
+info:
+  name: Multi-Protocol Value Sharing
+  author: pdteam
+  severity: medium
+
+workflows:
+  # Extract IP from HTTP response
+  - template: extract-ip-from-http.yaml
+  
+  # Use extracted IP in DNS query
+  - template: dns-reverse-lookup.yaml
+  
+  # Use results in network probe
+  - template: network-port-check.yaml
+```
+
+## Complex workflow conditions
+
+Combine multiple conditions for advanced logic:
+
+```yaml
+id: complex-workflow
+
+info:
+  name: Complex Conditional Workflow
+  author: pdteam
+  severity: critical
+
+workflows:
+  - template: detection/service-detection.yaml
+    matchers:
+      # MySQL detected - check for vulnerabilities
+      - name: mysql-detected
+        subtemplates:
+          - template: mysql/mysql-unauth.yaml
+            matchers:
+              - name: unauth-access
+                subtemplates:
+                  - template: mysql/mysql-dump.yaml
+                  - template: mysql/mysql-privesc.yaml
+      
+      # PostgreSQL detected
+      - name: postgres-detected
+        subtemplates:
+          - template: postgres/postgres-default-creds.yaml
+```
+
+## Workflow execution flow
+
+Understanding how workflows execute helps build effective detection chains:
+
+<Steps>
+  <Step title="Parse workflow">
+    Nuclei parses the workflow file and identifies all template references
+  </Step>
+  
+  <Step title="Load templates">
+    Referenced templates are loaded and compiled with their operators
+  </Step>
+  
+  <Step title="Execute sequentially">
+    Templates execute in the order defined in the workflow
+  </Step>
+  
+  <Step title="Evaluate conditions">
+    After each template, matchers are evaluated to determine next steps
+  </Step>
+  
+  <Step title="Share context">
+    Extracted values and variables are passed to subsequent templates
+  </Step>
+  
+  <Step title="Aggregate results">
+    All results are collected and reported together
+  </Step>
+</Steps>
+
+## Workflow vs flow templates
+
+Nuclei offers two approaches for multi-step execution:
+
+<Tabs>
+  <Tab title="Workflows">
+    **YAML-based template chaining**
+    
+    ```yaml
+    workflows:
+      - template: step1.yaml
+        subtemplates:
+          - template: step2.yaml
+    ```
+    
+    **Pros:**
+    - Declarative and easy to understand
+    - Reuses existing templates
+    - No programming knowledge required
+    
+    **Cons:**
+    - Limited conditional logic
+    - Cannot manipulate data between steps
+  </Tab>
+  
+  <Tab title="Flow Templates">
+    **JavaScript-based execution control**
+    
+    ```yaml
+    flow: |
+      http(0);
+      if (http_1_status_code === 200) {
+        http(1);
+        dns(0);
+      }
+    ```
+    
+    **Pros:**
+    - Full programming capabilities
+    - Complex conditional logic
+    - Data manipulation between steps
+    
+    **Cons:**
+    - Requires JavaScript knowledge
+    - More complex to debug
+  </Tab>
+</Tabs>
+
+## Practical workflow examples
+
+### Technology detection workflow
+
+```yaml
+id: tech-stack-assessment
+
+info:
+  name: Technology Stack Assessment
+  author: pdteam
+  severity: info
+  description: Detect technologies and run specific checks
+
+workflows:
+  - template: tech-detect/wappalyzer.yaml
+    matchers:
+      - name: nginx
+        subtemplates:
+          - tags: nginx
+      
+      - name: apache
+        subtemplates:
+          - tags: apache
+      
+      - name: iis
+        subtemplates:
+          - tags: iis
+```
+
+### Cloud security workflow
+
+```yaml
+id: cloud-security-workflow
+
+info:
+  name: Cloud Infrastructure Security
+  author: pdteam
+  severity: high
+
+workflows:
+  - template: cloud/aws/s3-bucket-enum.yaml
+  
+  - template: cloud/aws/s3-public-access.yaml
+    matchers:
+      - name: public-bucket
+        subtemplates:
+          - template: cloud/aws/s3-sensitive-files.yaml
+```
+
+### Authentication bypass workflow
+
+```yaml
+id: auth-bypass-workflow
+
+info:
+  name: Authentication Bypass Assessment
+  author: pdteam
+  severity: critical
+
+workflows:
+  - template: auth/login-page-detect.yaml
+  
+  - template: auth/default-credentials.yaml
+    matchers:
+      - name: login-successful
+        subtemplates:
+          - template: privesc/admin-panel-access.yaml
+          - template: privesc/user-enumeration.yaml
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Logical grouping" icon="layer-group">
+    Group related templates together for easier maintenance and understanding
+  </Card>
+  
+  <Card title="Minimize dependencies" icon="link-slash">
+    Keep workflows as independent as possible to improve reliability
+  </Card>
+  
+  <Card title="Use descriptive names" icon="pen">
+    Name matchers clearly to make conditional logic self-documenting
+  </Card>
+  
+  <Card title="Test each step" icon="vial">
+    Verify individual templates work before chaining them in workflows
+  </Card>
+</CardGroup>
+
+## Debugging workflows
+
+When workflows don't behave as expected:
+
+<Steps>
+  <Step title="Enable debug mode">
+    Run with `-debug` flag to see detailed execution information
+  </Step>
+  
+  <Step title="Test templates individually">
+    Verify each template works standalone before adding to workflow
+  </Step>
+  
+  <Step title="Check matcher names">
+    Ensure matcher names in workflow match those defined in templates
+  </Step>
+  
+  <Step title="Verify value extraction">
+    Confirm extractors properly extract and name values for sharing
+  </Step>
+</Steps>
+
+## Related topics
+
+<CardGroup cols={3}>
+  <Card title="Templates" href="/concepts/templates" icon="file-code">
+    Learn template fundamentals
+  </Card>
+  
+  <Card title="Matchers" href="/concepts/matchers-extractors" icon="magnifying-glass">
+    Deep dive into matchers
+  </Card>
+  
+  <Card title="Protocols" href="/concepts/protocols" icon="network-wired">
+    Explore protocol capabilities
+  </Card>
+</CardGroup>

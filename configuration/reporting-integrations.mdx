@@ -1,0 +1,454 @@
+---
+title: Reporting integrations
+description: Integrate Nuclei with issue trackers and monitoring systems like Jira, GitHub, GitLab, Splunk, and Elasticsearch
+---
+
+Nuclei can automatically create issues and export findings to various platforms through its reporting module. This enables seamless integration with your existing security workflows.
+
+## Supported integrations
+
+Nuclei supports two types of integrations:
+
+**Issue Trackers** - Automatically create and manage issues:
+- GitHub Issues
+- GitLab Issues
+- Jira
+- Linear
+- Gitea
+
+**Data Exporters** - Export scan results to:
+- Elasticsearch
+- Splunk
+- MongoDB
+- JSON/JSONL files
+- Markdown reports
+- SARIF format
+
+## Configuration file
+
+Create a reporting configuration file (e.g., `reporting-config.yaml`):
+
+```yaml
+# GitHub Issues Integration
+github:
+  - username: "your-username"
+    owner: "org-name"
+    token: "$GITHUB_TOKEN"
+    project-name: "repository-name"
+    issue-label: "security,nuclei"
+    severity-as-label: true
+    duplicate-issue-check: true
+
+# GitLab Issues Integration  
+gitlab:
+  - username: "your-username"
+    token: "$GITLAB_TOKEN"
+    project-name: "org/project"
+    issue-label: "security"
+    severity-as-label: true
+    duplicate-issue-check: true
+
+# Jira Integration
+jira:
+  - url: "https://company.atlassian.net"
+    account-id: "account-id"
+    email: "user@company.com"
+    token: "$JIRA_API_TOKEN"
+    project-key: "SEC"
+    issue-type: "Bug"
+    severity-as-label: true
+
+# Elasticsearch Export
+elasticsearch:
+  - ip: "localhost"
+    port: 9200
+    index: "nuclei-results"
+    index-type: "_doc"
+    # Optional authentication
+    # username: "elastic"
+    # password: "$ES_PASSWORD"
+
+# Splunk Export
+splunk:
+  - host: "splunk.company.com"
+    port: 8088
+    token: "$SPLUNK_TOKEN"
+    index: "nuclei"
+    source: "nuclei-scanner"
+    source-type: "_json"
+
+# MongoDB Export
+mongodb:
+  - connection-string: "$MONGO_URI"
+    database: "security"
+    collection: "nuclei-findings"
+```
+
+## Using the configuration
+
+Run Nuclei with the reporting configuration:
+
+```bash
+nuclei -target example.com -rc reporting-config.yaml
+```
+
+## GitHub integration
+
+### Setup
+
+<Steps>
+  <Step title="Create a GitHub token">
+    1. Go to GitHub Settings → Developer settings → Personal access tokens
+    2. Generate new token with `repo` scope
+    3. Save token as `GITHUB_TOKEN` environment variable
+  </Step>
+
+  <Step title="Configure reporting">
+    ```yaml
+    github:
+      - username: "john-doe"
+        owner: "acme-corp"
+        token: "$GITHUB_TOKEN"
+        project-name: "security-findings"
+        issue-label: "nuclei,vulnerability"
+        severity-as-label: true
+        duplicate-issue-check: true
+    ```
+  </Step>
+
+  <Step title="Run scan">
+    ```bash
+    export GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+    nuclei -target example.com -rc github-config.yaml
+    ```
+  </Step>
+</Steps>
+
+### Configuration options
+
+<ParamField path="username" type="string" required>
+  GitHub username for authentication
+</ParamField>
+
+<ParamField path="owner" type="string" required>
+  Repository owner (user or organization)
+</ParamField>
+
+<ParamField path="token" type="string" required>
+  GitHub personal access token (use environment variable)
+</ParamField>
+
+<ParamField path="project-name" type="string" required>
+  Repository name where issues will be created
+</ParamField>
+
+<ParamField path="issue-label" type="string">
+  Comma-separated labels to add to issues
+</ParamField>
+
+<ParamField path="severity-as-label" type="boolean" default="false">
+  Add severity (info, low, medium, high, critical) as label
+</ParamField>
+
+<ParamField path="duplicate-issue-check" type="boolean" default="false">
+  Check for existing issues before creating new ones
+</ParamField>
+
+## Jira integration
+
+### Setup
+
+<Steps>
+  <Step title="Get Jira credentials">
+    1. Generate API token: Atlassian Account → Security → API tokens
+    2. Find your Account ID: Profile → Account Settings
+    3. Note your Jira project key
+  </Step>
+
+  <Step title="Configure Jira">
+    ```yaml
+    jira:
+      - url: "https://acme.atlassian.net"
+        account-id: "557058:12345678-abcd-1234-abcd-123456789abc"
+        email: "security@acme.com"
+        token: "$JIRA_API_TOKEN"
+        project-key: "VULN"
+        issue-type: "Security Bug"
+        severity-as-label: true
+    ```
+  </Step>
+
+  <Step title="Test integration">
+    ```bash
+    export JIRA_API_TOKEN="your-api-token"
+    nuclei -target example.com -rc jira-config.yaml
+    ```
+  </Step>
+</Steps>
+
+### Custom fields
+
+Add custom Jira fields to issues:
+
+```yaml
+jira:
+  - # ... basic config ...
+    custom-fields:
+      customfield_10001: "Security Team"
+      customfield_10002: "{{severity}}"
+```
+
+## GitLab integration
+
+```yaml
+gitlab:
+  - username: "security-bot"
+    token: "$GITLAB_TOKEN"
+    project-name: "group/project"
+    issue-label: "security,automated"
+    severity-as-label: true
+    duplicate-issue-check: true
+```
+
+<Note>
+  For GitLab self-hosted instances, add the `base-url` field with your GitLab URL.
+</Note>
+
+## Elasticsearch integration
+
+### Basic configuration
+
+```yaml
+elasticsearch:
+  - ip: "elasticsearch.company.com"
+    port: 9200
+    index: "nuclei-{{date}}"
+    index-type: "_doc"
+```
+
+### With authentication
+
+```yaml
+elasticsearch:
+  - ip: "elasticsearch.company.com"
+    port: 9200
+    username: "elastic"
+    password: "$ES_PASSWORD"
+    ssl: true
+    ssl-verification: true
+    index: "security-findings"
+```
+
+### Dynamic index names
+
+Use templates in index names:
+
+```yaml
+index: "nuclei-{{date}}"
+# Creates: nuclei-2024-03-01
+
+index: "nuclei-{{host}}"
+# Creates: nuclei-example.com
+```
+
+## Splunk integration
+
+```yaml
+splunk:
+  - host: "splunk.company.com"
+    port: 8088
+    token: "$SPLUNK_HEC_TOKEN"
+    index: "security"
+    source: "nuclei"
+    source-type: "_json"
+    ssl: true
+    ssl-verification: true
+```
+
+<Tip>
+  Use Splunk's HTTP Event Collector (HEC) for best performance. Enable HEC in Splunk settings and generate a token.
+</Tip>
+
+## MongoDB integration
+
+```yaml
+mongodb:
+  - connection-string: "$MONGO_URI"
+    database: "security"
+    collection: "nuclei"
+    # Optional: Update existing documents instead of inserting duplicates
+    update: true
+```
+
+Connection string format:
+```
+mongodb://username:password@host:port/database
+mongodb+srv://username:password@cluster.mongodb.net/database
+```
+
+## Multiple integrations
+
+You can use multiple integrations simultaneously:
+
+```yaml
+# Create GitHub issues AND export to Elasticsearch
+github:
+  - username: "security-team"
+    owner: "acme-corp"
+    token: "$GITHUB_TOKEN"
+    project-name: "vulnerabilities"
+    severity-as-label: true
+
+elasticsearch:
+  - ip: "localhost"
+    port: 9200
+    index: "nuclei-{{date}}"
+
+splunk:
+  - host: "splunk.acme.com"
+    port: 8088
+    token: "$SPLUNK_TOKEN"
+    index: "security"
+```
+
+## Filtering findings
+
+Control which findings are reported:
+
+```yaml
+github:
+  - # ... config ...
+    # Only create issues for high and critical severity
+    severity-filter:
+      - high
+      - critical
+    
+    # Only specific templates
+    template-filter:
+      - "cves/"
+      - "vulnerabilities/"
+    
+    # Exclude certain templates
+    exclude-template:
+      - "misconfiguration/"
+```
+
+## Issue deduplication
+
+Nuclei includes built-in deduplication to avoid creating duplicate issues:
+
+```yaml
+github:
+  - # ... config ...
+    duplicate-issue-check: true
+```
+
+Deduplication is based on:
+- Template ID
+- Target host
+- Matched value
+
+<Note>
+  Nuclei stores deduplication data in `~/.config/nuclei/reporting-db.json`. This file persists across scans.
+</Note>
+
+## Workflow examples
+
+### CI/CD security gates
+
+```yaml
+# Only create issues for high/critical findings
+jira:
+  - url: "https://company.atlassian.net"
+    token: "$JIRA_TOKEN"
+    project-key: "SEC"
+    issue-type: "Security Issue"
+    severity-filter:
+      - critical
+      - high
+
+# Export all findings to Elasticsearch for analysis
+elasticsearch:
+  - ip: "elastic.company.com"
+    port: 9200
+    index: "ci-security-{{date}}"
+```
+
+### Bug bounty automation
+
+```yaml
+# Track findings in Linear
+linear:
+  - token: "$LINEAR_API_KEY"
+    team-id: "TEAM-ID"
+    project-id: "PROJECT-ID"
+    severity-as-label: true
+
+# Export detailed results
+jsonl:
+  - file: "findings-{{date}}.jsonl"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Issues not being created">
+    Check:
+    1. Token has correct permissions (e.g., `repo` for GitHub)
+    2. Project/repository exists and is accessible
+    3. Token is not expired
+    4. No rate limiting (check with `-v` flag)
+    
+    Debug:
+    ```bash
+    nuclei -target example.com -rc config.yaml -v
+    ```
+  </Accordion>
+
+  <Accordion title="Duplicate issues being created">
+    Enable deduplication:
+    ```yaml
+    duplicate-issue-check: true
+    ```
+    
+    Clear deduplication cache if needed:
+    ```bash
+    rm ~/.config/nuclei/reporting-db.json
+    ```
+  </Accordion>
+
+  <Accordion title="Elasticsearch connection errors">
+    Verify:
+    1. Elasticsearch is accessible: `curl http://elastic:9200`
+    2. Credentials are correct
+    3. SSL settings match your Elasticsearch config
+    4. Index pattern is valid
+    
+    Test with:
+    ```bash
+    nuclei -target example.com -rc es-config.yaml -debug
+    ```
+  </Accordion>
+
+  <Accordion title="Too many issues being created">
+    Use filters:
+    ```yaml
+    severity-filter:
+      - critical
+      - high
+    template-filter:
+      - "cves/"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/configuration/authentication">
+    Set up authentication for secure integrations
+  </Card>
+  <Card title="Output options" icon="file-export" href="/usage/output-options">
+    Learn about other output formats
+  </Card>
+</CardGroup>

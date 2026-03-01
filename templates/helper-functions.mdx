@@ -1,0 +1,612 @@
+---
+title: Helper functions
+description: Built-in DSL functions for data manipulation and validation
+---
+
+Nuclei provides a comprehensive set of helper functions (also called DSL functions) that can be used in templates for data manipulation, transformation, validation, and computation. These functions are available in matchers, extractors, and variables.
+
+## String functions
+
+<ParamField path="to_lower(input)" type="string">
+  Convert string to lowercase.
+  
+  ```yaml
+  dsl:
+    - "to_lower('HELLO') == 'hello'"
+  ```
+</ParamField>
+
+<ParamField path="to_upper(input)" type="string">
+  Convert string to uppercase.
+  
+  ```yaml
+  dsl:
+    - "to_upper('hello') == 'HELLO'"
+  ```
+</ParamField>
+
+<ParamField path="contains(input, substring)" type="boolean">
+  Check if string contains substring.
+  
+  ```yaml
+  matchers:
+    - type: dsl
+      dsl:
+        - "contains(body, 'admin')"
+  ```
+</ParamField>
+
+<ParamField path="starts_with(input, prefix)" type="boolean">
+  Check if string starts with prefix.
+  
+  ```yaml
+  dsl:
+    - "starts_with(header, 'HTTP/2')"
+  ```
+</ParamField>
+
+<ParamField path="ends_with(input, suffix)" type="boolean">
+  Check if string ends with suffix.
+  
+  ```yaml
+  dsl:
+    - "ends_with(body, '</html>')"
+  ```
+</ParamField>
+
+<ParamField path="trim(input)" type="string">
+  Remove leading and trailing whitespace.
+  
+  ```yaml
+  dsl:
+    - "trim('  hello  ') == 'hello'"
+  ```
+</ParamField>
+
+<ParamField path="trim_prefix(input, prefix)" type="string">
+  Remove prefix from string.
+  
+  ```yaml
+  dsl:
+    - "trim_prefix('www.example.com', 'www.') == 'example.com'"
+  ```
+</ParamField>
+
+<ParamField path="trim_suffix(input, suffix)" type="string">
+  Remove suffix from string.
+  
+  ```yaml
+  extractors:
+    - type: dsl
+      name: domain
+      dsl:
+        - "trim_suffix(cname, '.vercel-dns.com')"
+  ```
+</ParamField>
+
+<ParamField path="replace(input, old, new)" type="string">
+  Replace all occurrences of old with new.
+  
+  ```yaml
+  dsl:
+    - "replace(body, 'http://', 'https://')"
+  ```
+</ParamField>
+
+<ParamField path="len(input)" type="integer">
+  Get length of string or array.
+  
+  ```yaml
+  dsl:
+    - "len(body) > 1000"
+  ```
+</ParamField>
+
+<ParamField path="concat(str1, str2, ...)" type="string">
+  Concatenate multiple strings.
+  
+  ```yaml
+  dsl:
+    - "concat('https://', host, ':', port)"
+  ```
+</ParamField>
+
+## Encoding functions
+
+<ParamField path="base64(input)" type="string">
+  Base64 encode string.
+  
+  ```yaml
+  variables:
+    encoded: "{{base64('admin:password')}}"
+  ```
+</ParamField>
+
+<ParamField path="base64_decode(input)" type="string">
+  Base64 decode string.
+  
+  ```yaml
+  dsl:
+    - "base64_decode('YWRtaW46cGFzc3dvcmQ=')"
+  ```
+</ParamField>
+
+<ParamField path="urlencode(input)" type="string">
+  URL encode string.
+  
+  ```yaml
+  dsl:
+    - "urlencode('<script>alert(1)</script>')"
+  ```
+</ParamField>
+
+<ParamField path="urldecode(input)" type="string">
+  URL decode string.
+  
+  ```yaml
+  dsl:
+    - "urldecode('%3Cscript%3E')"
+  ```
+</ParamField>
+
+<ParamField path="html_escape(input)" type="string">
+  HTML encode string.
+  
+  ```yaml
+  dsl:
+    - "html_escape('<img src=x>')"
+  ```
+</ParamField>
+
+<ParamField path="html_unescape(input)" type="string">
+  HTML decode string.
+  
+  ```yaml
+  dsl:
+    - "html_unescape('&lt;img&gt;')"
+  ```
+</ParamField>
+
+<ParamField path="hex_encode(input)" type="string">
+  Hex encode string.
+  
+  ```yaml
+  dsl:
+    - "hex_encode('admin')"
+  ```
+</ParamField>
+
+<ParamField path="hex_decode(input)" type="string">
+  Hex decode string.
+  
+  ```yaml
+  dsl:
+    - "hex_decode('61646d696e')"
+  ```
+</ParamField>
+
+## Hashing functions
+
+<ParamField path="md5(input)" type="string">
+  Calculate MD5 hash.
+  
+  ```yaml
+  dsl:
+    - "md5(body) == '5d41402abc4b2a76b9719d911017c592'"
+  ```
+</ParamField>
+
+<ParamField path="sha1(input)" type="string">
+  Calculate SHA1 hash.
+  
+  ```yaml
+  dsl:
+    - "sha1('password')"
+  ```
+</ParamField>
+
+<ParamField path="sha256(input)" type="string">
+  Calculate SHA256 hash.
+  
+  ```yaml
+  dsl:
+    - "sha256(body)"
+  ```
+</ParamField>
+
+<ParamField path="sha512(input)" type="string">
+  Calculate SHA512 hash.
+  
+  ```yaml
+  dsl:
+    - "sha512(input)"
+  ```
+</ParamField>
+
+<ParamField path="mmh3(input)" type="string">
+  Calculate MurmurHash3 hash.
+  
+  ```yaml
+  dsl:
+    - "mmh3(body)"
+  ```
+</ParamField>
+
+## Regex functions
+
+<ParamField path="regex(pattern, input)" type="boolean">
+  Check if input matches regex pattern.
+  
+  ```yaml
+  dsl:
+    - "regex('\\d+\\.\\d+\\.\\d+', body)"
+  ```
+</ParamField>
+
+## Numeric functions
+
+<ParamField path="rand_int(min, max)" type="integer">
+  Generate random integer between min and max.
+  
+  ```yaml
+  variables:
+    random_id: "{{rand_int(1000, 9999)}}"
+  ```
+</ParamField>
+
+<ParamField path="unixtime()" type="integer">
+  Get current Unix timestamp.
+  
+  ```yaml
+  variables:
+    timestamp: "{{unixtime()}}"
+  ```
+</ParamField>
+
+## Random data functions
+
+<ParamField path="randstr(length)" type="string">
+  Generate random alphanumeric string of specified length.
+  
+  ```yaml
+  variables:
+    nonce: "{{randstr(16)}}"
+  ```
+</ParamField>
+
+<ParamField path="rand_text_alphanumeric(length)" type="string">
+  Generate random alphanumeric text.
+  
+  ```yaml
+  payloads:
+    random: "{{rand_text_alphanumeric(10)}}"
+  ```
+</ParamField>
+
+<ParamField path="rand_text_alpha(length)" type="string">
+  Generate random alphabetic text.
+  
+  ```yaml
+  variables:
+    random_alpha: "{{rand_text_alpha(8)}}"
+  ```
+</ParamField>
+
+<ParamField path="rand_text_numeric(length)" type="string">
+  Generate random numeric text.
+  
+  ```yaml
+  variables:
+    random_num: "{{rand_text_numeric(6)}}"
+  ```
+</ParamField>
+
+<ParamField path="rand_base64(length)" type="string">
+  Generate random base64 encoded string.
+  
+  ```yaml
+  variables:
+    random_b64: "{{rand_base64(20)}}"
+  ```
+</ParamField>
+
+## Response data functions
+
+<ParamField path="status_code" type="integer">
+  HTTP response status code.
+  
+  ```yaml
+  dsl:
+    - "status_code == 200"
+  ```
+</ParamField>
+
+<ParamField path="content_length" type="integer">
+  HTTP response content length.
+  
+  ```yaml
+  dsl:
+    - "content_length > 1000"
+  ```
+</ParamField>
+
+<ParamField path="duration" type="integer">
+  Request duration in milliseconds.
+  
+  ```yaml
+  dsl:
+    - "duration < 500"
+  ```
+</ParamField>
+
+<ParamField path="body" type="string">
+  HTTP response body.
+  
+  ```yaml
+  dsl:
+    - "contains(body, 'success')"
+  ```
+</ParamField>
+
+<ParamField path="header" type="map">
+  HTTP response headers as map.
+  
+  ```yaml
+  dsl:
+    - "header['Server'] == 'nginx'"
+  ```
+</ParamField>
+
+<ParamField path="all_headers" type="string">
+  All HTTP response headers concatenated.
+  
+  ```yaml
+  dsl:
+    - "contains(tolower(all_headers), 'x-powered-by')"
+  ```
+</ParamField>
+
+## Real-world examples
+
+<CodeGroup>
+```yaml Complex DSL Matcher
+id: dsl-matcher-example
+
+info:
+  name: Complex DSL Matching
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/package.json"
+    
+    matchers:
+      - type: dsl
+        condition: and
+        dsl:
+          - "contains(body, 'packages')"
+          - "contains(tolower(all_headers), 'application/octet-stream')"
+          - "status_code == 200"
+          - "content_length < 100000"
+```
+
+```yaml Encoding Chain
+id: encoding-example
+
+info:
+  name: Multiple Encoding Example
+  author: pdteam
+  severity: info
+
+variables:
+  payload: "<script>alert(1)</script>"
+  url_encoded: "{{urlencode(payload)}}"
+  base64_encoded: "{{base64(url_encoded)}}"
+  final_payload: "{{base64(urlencode(payload))}}"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/search?q={{final_payload}}"
+```
+
+```yaml Hash Validation
+id: hash-validation
+
+info:
+  name: Response Hash Validation
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/file.txt"
+    
+    extractors:
+      - type: dsl
+        name: file_hash
+        dsl:
+          - "sha256(body)"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "sha256(body) == 'expected_hash_here'"
+```
+
+```yaml String Manipulation
+id: string-manipulation
+
+info:
+  name: Advanced String Processing
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    extractors:
+      - type: dsl
+        name: clean_domain
+        dsl:
+          - "to_lower(trim_suffix(trim_prefix(cname, '*.'),'.'))"
+```
+
+```yaml Multi-Request Correlation
+id: multi-request-dsl
+
+info:
+  name: Multi-Request DSL
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/v1"
+      - "{{BaseURL}}/api/v2"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code_1 == 200 && status_code_2 == 404"
+          - "contains(body_1, 'deprecated') && !contains(body_2, 'deprecated')"
+        condition: or
+```
+</CodeGroup>
+
+## Combining functions
+
+Helper functions can be nested and combined:
+
+```yaml
+dsl:
+  - "contains(to_lower(body), 'admin')"
+  - "len(trim(header['Server'])) > 0"
+  - "base64(to_upper(concat('user:', username)))"
+  - "md5(base64_decode(cookie))"
+```
+
+## Best practices
+
+1. **Use appropriate functions** - Choose the right function for the task (e.g., `contains()` vs `regex()`)
+2. **Chain functions efficiently** - Combine functions to avoid multiple operations
+3. **Validate before transforming** - Check data exists before applying transformations
+4. **Use case-insensitive comparisons** - Apply `to_lower()` or `to_upper()` for reliable matching
+5. **Cache expensive operations** - Store computed values in variables
+6. **Test DSL expressions** - Verify complex DSL logic with known inputs
+7. **Document complex logic** - Add comments for non-obvious DSL expressions
+
+## Common patterns
+
+### Validate and extract
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "regex('[0-9]+\\.[0-9]+\\.[0-9]+', body)"
+
+extractors:
+  - type: dsl
+    dsl:
+      - "regex('[0-9]+\\.[0-9]+\\.[0-9]+', body)"
+```
+
+### Normalize and compare
+
+```yaml
+dsl:
+  - "to_lower(trim(header['Server'])) == 'nginx'"
+```
+
+### Multiple conditions
+
+```yaml
+matchers:
+  - type: dsl
+    condition: and
+    dsl:
+      - "status_code >= 200 && status_code < 300"
+      - "content_length > 0"
+      - "duration < 1000"
+      - "!contains(body, 'error')"
+```
+
+### Hash-based detection
+
+```yaml
+matchers:
+  - type: dsl
+    dsl:
+      - "md5(body) == '5d41402abc4b2a76b9719d911017c592'"
+      - "sha256(body) == 'known_malicious_hash'"
+```
+
+## Performance considerations
+
+<Warning>
+  Some helper functions are computationally expensive:
+  
+  - Hashing functions (md5, sha256, etc.) on large responses
+  - Regex matching on entire response body
+  - Multiple nested function calls
+  
+  Use these judiciously and consider caching results in variables.
+</Warning>
+
+## Function categories
+
+<Tabs>
+  <Tab title="String">
+    - `to_lower`, `to_upper`
+    - `contains`, `starts_with`, `ends_with`
+    - `trim`, `trim_prefix`, `trim_suffix`
+    - `replace`, `concat`, `len`
+  </Tab>
+  
+  <Tab title="Encoding">
+    - `base64`, `base64_decode`
+    - `urlencode`, `urldecode`
+    - `html_escape`, `html_unescape`
+    - `hex_encode`, `hex_decode`
+  </Tab>
+  
+  <Tab title="Hashing">
+    - `md5`, `sha1`, `sha256`, `sha512`
+    - `mmh3`
+  </Tab>
+  
+  <Tab title="Random">
+    - `randstr`, `rand_int`
+    - `rand_text_alphanumeric`
+    - `rand_text_alpha`, `rand_text_numeric`
+    - `rand_base64`
+  </Tab>
+  
+  <Tab title="Utility">
+    - `regex`, `unixtime`
+    - Response variables: `status_code`, `body`, `header`, etc.
+  </Tab>
+</Tabs>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Matchers" icon="check-circle" href="/templates/matchers">
+    Using DSL in matchers
+  </Card>
+  <Card title="Extractors" icon="filter" href="/templates/extractors">
+    Using DSL in extractors
+  </Card>
+  <Card title="Variables" icon="dollar-sign" href="/templates/variables">
+    Computing variables
+  </Card>
+  <Card title="Flow Control" icon="code-branch" href="/templates/flow-control">
+    JavaScript vs DSL
+  </Card>
+</CardGroup>

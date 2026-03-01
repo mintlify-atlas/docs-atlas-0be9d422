@@ -1,0 +1,432 @@
+---
+title: Code protocol templates  
+description: Create code execution templates for running Python, Bash, and PowerShell scripts
+---
+
+Code protocol templates enable you to execute external code snippets (Python, Bash, PowerShell) for advanced testing scenarios that require system-level operations or complex logic.
+
+## Basic code request
+
+```yaml
+id: basic-code-example
+
+info:
+  name: Basic Code Execution
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - python3
+    source: |
+      import sys
+      print("Hello from Python")
+    
+    matchers:
+      - type: word
+        words:
+          - "Hello from Python"
+```
+
+<Warning>
+  Code templates require the specified interpreter to be installed on the system running Nuclei.
+</Warning>
+
+## Code components
+
+### Engine
+
+<ParamField path="engine" type="array" required>
+  List of interpreters to try (in order).
+  
+  **Supported engines**:
+  - Python: `py`, `python`, `python3`, `python2`
+  - Bash: `sh`, `bash`
+  - PowerShell: `powershell`, `pwsh`, `ps1`
+  
+  ```yaml
+  code:
+    - engine:
+        - python3
+        - python
+        - py
+  ```
+</ParamField>
+
+### Source
+
+<ParamField path="source" type="string" required>
+  Code to execute. Can be inline or reference a file.
+  
+  **Inline code**:
+  ```yaml
+  code:
+    - engine:
+        - bash
+      source: |
+        echo "Running check"
+        curl -s http://example.com
+  ```
+  
+  **External file**:
+  ```yaml
+  code:
+    - engine:
+        - python3
+      source: scripts/check.py
+  ```
+</ParamField>
+
+### Arguments
+
+<ParamField path="args" type="array">
+  Command-line arguments passed to the script.
+  
+  ```yaml
+  code:
+    - engine:
+        - python3
+      source: script.py
+      args:
+        - "--host"
+        - "{{Host}}"
+        - "--port"
+        - "{{Port}}"
+  ```
+</ParamField>
+
+### Pre-condition
+
+<ParamField path="pre-condition" type="string">
+  Condition that must be true before executing code.
+  
+  ```yaml
+  code:
+    - engine:
+        - bash
+      pre-condition: |
+        Host != ""
+      source: |
+        echo "Checking $Host"
+  ```
+</ParamField>
+
+## Python examples
+
+### Simple Python script
+
+```yaml
+id: python-hello
+
+info:
+  name: Python Hello World
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - python3
+    source: |
+      import sys
+      message = sys.stdin.read()
+      print(f"Received: {message}")
+    
+    matchers:
+      - type: word
+        words:
+          - "Received:"
+```
+
+### Python with environment variables
+
+```yaml
+id: python-env-vars
+
+info:
+  name: Python Environment Variables
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - python3
+    source: |
+      import os
+      host = os.getenv('HOST', 'default')
+      print(f"Target: {host}")
+    
+    matchers:
+      - type: word
+        words:
+          - "Target:"
+```
+
+### Python HTTP request
+
+```yaml
+id: python-http-check
+
+info:
+  name: Python HTTP Request
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - python3
+    source: |
+      import urllib.request
+      import sys
+      
+      url = sys.stdin.read().strip()
+      try:
+          response = urllib.request.urlopen(url)
+          print(response.read().decode())
+      except Exception as e:
+          print(f"Error: {e}")
+    
+    matchers:
+      - type: word
+        words:
+          - "<html"
+```
+
+## Bash examples
+
+### Simple bash script
+
+```yaml
+id: bash-command
+
+info:
+  name: Bash Command Execution
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - bash
+    source: |
+      #!/bin/bash
+      echo "System: $(uname -a)"
+      echo "User: $(whoami)"
+    
+    matchers:
+      - type: regex
+        regex:
+          - "System: Linux"
+```
+
+### Bash with input
+
+```yaml
+id: bash-with-input
+
+info:
+  name: Bash Script with Input
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - bash
+    source: |
+      #!/bin/bash
+      read -r target
+      ping -c 1 "$target" && echo "Host is up"
+    
+    matchers:
+      - type: word
+        words:
+          - "Host is up"
+```
+
+## PowerShell examples
+
+### Simple PowerShell
+
+```yaml
+id: powershell-check
+
+info:
+  name: PowerShell Script
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - pwsh
+      - powershell
+    source: |
+      $PSVersionTable.PSVersion | ConvertTo-Json
+    
+    matchers:
+      - type: word
+        words:
+          - "Major"
+          - "Minor"
+```
+
+### PowerShell HTTP request
+
+```yaml
+id: powershell-http
+
+info:
+  name: PowerShell HTTP Check
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - pwsh
+    source: |
+      $url = Read-Host
+      try {
+          $response = Invoke-WebRequest -Uri $url -UseBasicParsing
+          Write-Output $response.StatusCode
+      } catch {
+          Write-Output "Error: $_"
+      }
+    
+    matchers:
+      - type: regex
+        regex:
+          - "^200$"
+```
+
+## Pattern matching
+
+<ParamField path="pattern" type="string">
+  Filename pattern for the temporary script file.
+  
+  ```yaml
+  code:
+    - engine:
+        - python3
+      pattern: "*.py"
+      source: |
+        print("Python script")
+  ```
+</ParamField>
+
+## Example: Cloud credential check
+
+```yaml
+id: aws-credentials-check
+
+info:
+  name: AWS Credentials Validation
+  author: pdteam
+  severity: high
+  description: Checks if AWS credentials are configured
+
+code:
+  - engine:
+      - bash
+    source: |
+      if [ -f ~/.aws/credentials ]; then
+        echo "AWS credentials found"
+        cat ~/.aws/credentials | grep -E "\[.*\]"
+      else
+        echo "No AWS credentials"
+      fi
+    
+    matchers:
+      - type: word
+        words:
+          - "[default]"
+          - "aws_access_key_id"
+```
+
+## Example: Network connectivity check
+
+```yaml
+id: network-connectivity
+
+info:
+  name: Network Connectivity Test
+  author: pdteam
+  severity: info
+
+code:
+  - engine:
+      - python3
+    source: |
+      import socket
+      import sys
+      
+      host = sys.stdin.read().strip()
+      try:
+          ip = socket.gethostbyname(host)
+          print(f"Resolved: {host} -> {ip}")
+      except:
+          print(f"Failed to resolve: {host}")
+    
+    matchers:
+      - type: word
+        words:
+          - "Resolved:"
+```
+
+## Matchers for code
+
+```yaml
+matchers:
+  # Word matcher
+  - type: word
+    words:
+      - "success"
+      - "found"
+    condition: or
+  
+  # Regex matcher
+  - type: regex
+    regex:
+      - "Result: [0-9]+"
+  
+  # Status matcher (exit code)
+  - type: dsl
+    dsl:
+      - "status_code == 0"
+```
+
+## Extractors for code
+
+```yaml
+extractors:
+  # Regex extractor
+  - type: regex
+    name: version
+    regex:
+      - "Version: ([0-9.]+)"
+    group: 1
+  
+  # All output
+  - type: regex
+    name: output
+    regex:
+      - "(.*)"
+```
+
+## Security considerations
+
+<Warning>
+  **Code templates pose security risks**:
+  - Only run trusted templates
+  - Templates must be signed for production use
+  - Review code before execution
+  - Avoid running with elevated privileges
+  - Use pre-conditions to limit execution
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="File protocol" icon="file" href="/templates/protocols/file">
+    Local file system scanning
+  </Card>
+  <Card title="Template signing" icon="signature" href="/templates/signing">
+    Sign templates for security
+  </Card>
+</CardGroup>

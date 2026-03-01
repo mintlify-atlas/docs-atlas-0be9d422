@@ -1,0 +1,474 @@
+---
+title: Migration guide for v3
+description: Guide for migrating from Nuclei v2 to v3
+---
+
+This guide helps you migrate from Nuclei v2 to v3, covering breaking changes, new features, and migration steps.
+
+## Overview
+
+<Note>
+Nuclei v3 introduces significant improvements in performance, template execution, and protocol support. While most templates are backward compatible, some changes require attention.
+</Note>
+
+## Breaking changes
+
+### Template execution
+
+<Warning>
+Nuclei v3 changes how templates are executed and may affect custom templates and workflows.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Flow-based execution">
+    **v2 behavior:**
+    - Templates executed requests sequentially
+    - Limited control over execution flow
+
+    **v3 behavior:**
+    - Introduces `flow` field for explicit execution control
+    - More flexible multi-step template execution
+    - Backward compatible (sequential execution if no flow specified)
+
+    **Migration:**
+    ```yaml
+    # v2 - implicit sequential execution
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/step1"
+      - method: GET
+        path:
+          - "{{BaseURL}}/step2"
+
+    # v3 - explicit flow control
+    flow: |
+      http(0)
+      http(1)
+
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}/step1"
+      - method: GET
+        path:
+          - "{{BaseURL}}/step2"
+    ```
+  </Accordion>
+
+  <Accordion title="Protocol changes">
+    **Renamed protocols:**
+    - `network` → `tcp` (network still works but is deprecated)
+    - `requests` → `http` (requests still works but is deprecated)
+
+    **Migration:**
+    ```yaml
+    # v2
+    requests:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+
+    network:
+      - host:
+          - "{{Hostname}}"
+
+    # v3 (preferred)
+    http:
+      - method: GET
+        path:
+          - "{{BaseURL}}"
+
+    tcp:
+      - host:
+          - "{{Hostname}}"
+    ```
+  </Accordion>
+
+  <Accordion title="JavaScript protocol">
+    **v3 introduces native JavaScript support:**
+
+    ```yaml
+    javascript:
+      - code: |
+          let c = require('net');
+          let conn = c.Open('tcp', Host + ':' + Port);
+          conn.Send('test');
+          let resp = conn.RecvString();
+          Export({response: resp});
+
+        args:
+          Host: "{{Host}}"
+          Port: "22"
+    ```
+
+    This enables protocol scanning beyond HTTP/DNS/TCP.
+  </Accordion>
+
+  <Accordion title="Code protocol">
+    **v3 adds code protocol for advanced use cases:**
+
+    ```yaml
+    # Requires -code flag to execute
+    code:
+      - engine:
+          - sh
+        source: |
+          echo "Custom code execution"
+    ```
+
+    <Warning>
+    Code templates require `-code` flag and should be used with caution.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+### Command-line flags
+
+<Accordion title="Deprecated flags">
+| v2 Flag | v3 Flag | Notes |
+|---------|---------|-------|
+| `-fuzz` | `-dast` | Fuzzing renamed to DAST |
+| `-rlm` (rate-limit-minute) | `-rl` (rate-limit) | Simplified rate limiting |
+| `-irr` (include-rr) | `-omit-raw` | Inverted logic for clarity |
+| `-cup` (cloud-upload) | `-dashboard` | Renamed for clarity |
+
+**Migration:**
+```bash
+# v2
+nuclei -u target.com -fuzz -rlm 100 -cup
+
+# v3
+nuclei -u target.com -dast -rl 100 -dashboard
+```
+</Accordion>
+
+### Configuration
+
+<Accordion title="Configuration file changes">
+**v3 uses versioned configuration:**
+
+```yaml
+# ~/.config/nuclei/config.yaml
+
+# v2 config may need updates
+# Run to migrate:
+nuclei -version  # Auto-migrates config if needed
+```
+
+New configuration options:
+- `dast` instead of `fuzz`
+- `dashboard` instead of `cloud-upload`
+- Updated rate limiting configuration
+</Accordion>
+
+## New features
+
+### Multi-protocol templates
+
+<Accordion title="Single template, multiple protocols">
+v3 allows multiple protocols in one template:
+
+```yaml
+id: multi-protocol-check
+
+info:
+  name: Multi-protocol vulnerability check
+  author: pdteam
+  severity: high
+
+flow: |
+  http(0)
+  dns(0)
+  ssl(0)
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+dns:
+  - name: "{{FQDN}}"
+    type: A
+
+ssl:
+  - address: "{{Host}}:{{Port}}"
+```
+</Accordion>
+
+### Enhanced flow control
+
+<Accordion title="Advanced execution flows">
+```yaml
+# Conditional execution
+flow: |
+  http(0)
+  if (http_status_code == 200) {
+    http(1)
+  }
+
+# Loops and iterations
+flow: |
+  for (let region of regions) {
+    http(0)
+  }
+
+# Complex workflows
+flow: |
+  http(0)
+  dns(0)
+  if (dns_contains_ip("1.2.3.4")) {
+    http(1)
+    ssl(0)
+  }
+```
+</Accordion>
+
+### Performance improvements
+
+<Accordion title="Template clustering enhancements">
+**v3 improvements:**
+- Smarter request deduplication
+- Better connection pooling
+- Optimized template compilation
+- Reduced memory footprint
+
+**Results:**
+- 30-50% faster scanning on average
+- Lower resource consumption
+- Better concurrency handling
+</Accordion>
+
+### DAST capabilities
+
+<Accordion title="Dynamic application security testing">
+```bash
+# Enable DAST mode for fuzzing
+nuclei -u https://example.com -dast
+
+# Configure fuzzing aggression
+nuclei -u https://example.com -dast -fa high
+
+# DAST server mode for live fuzzing
+nuclei -dast-server -dast-server-address localhost:9055
+```
+</Accordion>
+
+## Migration steps
+
+<Steps>
+  <Step title="Backup v2 configuration">
+    ```bash
+    # Backup v2 config
+    cp ~/.config/nuclei/config.yaml ~/.config/nuclei/config.yaml.v2.backup
+
+    # Backup custom templates
+    cp -r ~/custom-templates ~/custom-templates.v2.backup
+    ```
+  </Step>
+
+  <Step title="Install Nuclei v3">
+    ```bash
+    # Update to v3
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+
+    # Verify version
+    nuclei -version
+    ```
+  </Step>
+
+  <Step title="Update templates">
+    ```bash
+    # Update to v3 templates
+    nuclei -update-templates
+
+    # Verify template version
+    nuclei -templates-version
+    ```
+  </Step>
+
+  <Step title="Test custom templates">
+    ```bash
+    # Validate custom templates
+    nuclei -validate -t ~/custom-templates/
+
+    # Test execution
+    nuclei -u https://test-target.com -t ~/custom-templates/ -debug
+    ```
+  </Step>
+
+  <Step title="Update automation scripts">
+    Update CI/CD pipelines and automation scripts:
+
+    ```bash
+    # Update flag names
+    # -fuzz → -dast
+    # -cup → -dashboard
+    # -rlm → -rl
+
+    # Example:
+    # OLD: nuclei -list targets.txt -fuzz -cup
+    # NEW: nuclei -list targets.txt -dast -dashboard
+    ```
+  </Step>
+
+  <Step title="Review and test">
+    - Test scans against known targets
+    - Verify output formats are compatible
+    - Check integrations (Jira, Slack, etc.)
+    - Monitor performance and resource usage
+  </Step>
+</Steps>
+
+## Template migration
+
+### Update deprecated syntax
+
+```yaml
+# Before (v2)
+id: example-template
+
+info:
+  name: Example
+  author: pdteam
+  severity: high
+
+requests:  # Deprecated
+  - method: GET
+    path:
+      - "{{BaseURL}}/api"
+
+# After (v3)
+id: example-template
+
+info:
+  name: Example
+  author: pdteam
+  severity: high
+
+http:  # Preferred
+  - method: GET
+    path:
+      - "{{BaseURL}}/api"
+```
+
+### Add flow control (optional)
+
+```yaml
+# Explicit flow for multi-step templates
+flow: |
+  http(0)
+  if (http_status_code == 200) {
+    http(1)
+  }
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/step1"
+  - method: GET
+    path:
+      - "{{BaseURL}}/step2"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Templates fail validation">
+    **Issue:** Custom templates fail validation in v3.
+
+    **Solution:**
+    ```bash
+    # Check specific errors
+    nuclei -validate -t template.yaml -v
+
+    # Disable strict syntax temporarily
+    nuclei -u target.com -t template.yaml -nss
+
+    # Update template syntax
+    # Replace deprecated fields (requests → http, network → tcp)
+    ```
+  </Accordion>
+
+  <Accordion title="Performance regression">
+    **Issue:** Scans slower in v3.
+
+    **Solution:**
+    ```bash
+    # Ensure template clustering is enabled (default)
+    nuclei -u target.com -t templates/
+
+    # Increase concurrency if needed
+    nuclei -u target.com -c 50 -rl 200
+
+    # Check for inefficient custom templates
+    nuclei -validate -t custom-templates/ -v
+    ```
+  </Accordion>
+
+  <Accordion title="Config compatibility">
+    **Issue:** v2 config file not working.
+
+    **Solution:**
+    ```bash
+    # Reset config (backs up automatically)
+    nuclei -reset
+
+    # Or manually update deprecated settings
+    # Edit ~/.config/nuclei/config.yaml
+    # Update: fuzz→dast, cloud-upload→dashboard, etc.
+    ```
+  </Accordion>
+
+  <Accordion title="Integration issues">
+    **Issue:** Integrations (Jira, Slack) not working.
+
+    **Solution:**
+    - Update reporting config file syntax
+    - Verify API tokens/credentials still valid
+    - Check output format compatibility
+    - Review integration logs with `-v`
+  </Accordion>
+</AccordionGroup>
+
+## Version-specific notes
+
+### v3.0.x
+
+<Accordion title="Initial v3 release notes">
+**Major changes:**
+- Flow-based template execution
+- JavaScript protocol support
+- Code protocol (requires `-code` flag)
+- Enhanced DAST capabilities
+- Renamed protocols and flags
+- Performance optimizations
+
+**Known issues:**
+- Some v2 templates may need minor adjustments
+- Custom workflows may require flow definitions
+</Accordion>
+
+## Getting help
+
+<CardGroup cols={2}>
+  <Card title="Migration issues" icon="question" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Ask on GitHub Discussions
+  </Card>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Get real-time help
+  </Card>
+  <Card title="Report bugs" icon="bug" href="https://github.com/projectdiscovery/nuclei/issues">
+    File issues on GitHub
+  </Card>
+  <Card title="Documentation" icon="book" href="/">
+    Browse full documentation
+  </Card>
+</CardGroup>
+
+## Additional resources
+
+- [Changelog](https://github.com/projectdiscovery/nuclei/releases) - Full release notes
+- [Template syntax](/templates/introduction) - v3 template reference
+- [Flow control](/templates/flow) - Flow-based execution guide
+- [Troubleshooting](/resources/troubleshooting) - Common issues and solutions

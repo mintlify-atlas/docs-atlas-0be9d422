@@ -1,0 +1,347 @@
+---
+title: JavaScript protocol templates
+description: Create JavaScript-based Nuclei templates for custom protocol implementations
+---
+
+JavaScript protocol templates allow you to write custom protocol logic using Nuclei's JavaScript runtime, enabling complex interactions with services that don't fit standard protocols.
+
+## Basic JavaScript request
+
+```yaml
+id: basic-javascript
+
+info:
+  name: Basic JavaScript Protocol
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/ssh");
+      var c = m.SSHClient();
+      var response = c.ConnectSSHInfoMode(Host, Port);
+      to_json(response);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "22"
+    
+    extractors:
+      - type: json
+        json:
+          - '.ServerID.Raw'
+```
+
+## JavaScript components
+
+### Code
+
+<ParamField path="code" type="string" required>
+  JavaScript code to execute. Has access to Nuclei's built-in libraries.
+  
+  ```yaml
+  javascript:
+    - code: |
+        var result = "Hello from JavaScript";
+        to_json({message: result});
+  ```
+</ParamField>
+
+### Arguments
+
+<ParamField path="args" type="object">
+  Arguments passed to the JavaScript code. Can use template variables.
+  
+  ```yaml
+  javascript:
+    - code: |
+        Host;  // Accessible as variable
+        Port;  // Accessible as variable
+      args:
+        Host: "{{Host}}"
+        Port: "{{Port}}"
+  ```
+</ParamField>
+
+### Init
+
+<ParamField path="init" type="string">
+  Initialization code executed once during template compilation.
+  
+  ```yaml
+  javascript:
+    - init: |
+        var payloads = [];
+        for (var i = 0; i < 10; i++) {
+          payloads.push("payload" + i);
+        }
+      
+      code: |
+        // Use payloads array here
+        to_json({count: payloads.length});
+  ```
+</ParamField>
+
+### Pre-condition
+
+<ParamField path="pre-condition" type="string">
+  JavaScript expression evaluated before running the template.
+  
+  ```yaml
+  javascript:
+    - pre-condition: |
+        Port == 22 || Port == 2222
+      
+      code: |
+        // Only runs if pre-condition is true
+  ```
+</ParamField>
+
+## Available libraries
+
+Nuclei provides JavaScript libraries for common protocols:
+
+### SSH library
+
+```yaml
+id: ssh-fingerprint
+
+info:
+  name: SSH Server Fingerprint
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/ssh");
+      var c = m.SSHClient();
+      var response = c.ConnectSSHInfoMode(Host, Port);
+      to_json(response);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "22"
+    
+    extractors:
+      - type: json
+        name: ssh_version
+        json:
+          - '.ServerID.Raw'
+```
+
+### VNC library
+
+```yaml
+id: vnc-detection
+
+info:
+  name: VNC Service Detection
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/vnc");
+      var c = m.VNCClient();
+      var response = c.GetServerInfo(Host, Port);
+      to_json(response);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "5900"
+```
+
+### Network library
+
+```yaml
+id: tcp-connect
+
+info:
+  name: TCP Connection Test
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/net");
+      var c = m.Open("tcp", Host + ":" + Port);
+      c.Send("PING\\n");
+      var response = c.RecvString();
+      to_json({response: response});
+    
+    args:
+      Host: "{{Host}}"
+      Port: "8080"
+```
+
+## Example: Redis password brute force
+
+```yaml
+id: redis-brute
+
+info:
+  name: Redis Password Brute Force
+  author: pdteam
+  severity: high
+
+javascript:
+  - code: |
+      var m = require("nuclei/redis");
+      var c = m.RedisClient();
+      var result = c.Connect(Host, Port, Password);
+      to_json(result);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "6379"
+      Password: "{{password}}"
+    
+    payloads:
+      password:
+        - admin
+        - password
+        - redis
+        - 123456
+    
+    threads: 5
+    
+    matchers:
+      - type: word
+        words:
+          - '"connected":true'
+```
+
+## Example: MySQL connection test
+
+```yaml
+id: mysql-connect
+
+info:
+  name: MySQL Connection Test
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/mysql");
+      var c = m.MySQLClient();
+      var info = c.GetServerInfo(Host, Port);
+      to_json(info);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "3306"
+    
+    extractors:
+      - type: json
+        json:
+          - '.Version'
+          - '.Protocol'
+```
+
+## Example: PostgreSQL detection
+
+```yaml
+id: postgres-detect
+
+info:
+  name: PostgreSQL Server Detection
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/postgres");
+      var c = m.PGClient();
+      var info = c.Connect(Host, Port, Username, Password);
+      to_json(info);
+    
+    args:
+      Host: "{{Host}}"
+      Port: "5432"
+      Username: "postgres"
+      Password: ""
+```
+
+## Multi-port testing
+
+```yaml
+id: multi-port-service
+
+info:
+  name: Multi-Port Service Detection
+  author: pdteam
+  severity: info
+
+javascript:
+  - code: |
+      var m = require("nuclei/net");
+      var c = m.Open("tcp", Host + ":" + Port);
+      var response = c.RecvString();
+      to_json({port: Port, banner: response});
+    
+    args:
+      Host: "{{Host}}"
+      Port: "{{port}}"
+    
+    payloads:
+      port:
+        - 21
+        - 22
+        - 23
+        - 25
+        - 80
+        - 443
+    
+    threads: 10
+```
+
+## JavaScript matchers
+
+```yaml
+matchers:
+  # Word matcher
+  - type: word
+    words:
+      - '"success":true'
+  
+  # JSON matcher
+  - type: json
+    json:
+      - '.connected == true'
+  
+  # DSL matcher
+  - type: dsl
+    dsl:
+      - 'contains(response, "admin")'
+```
+
+## JavaScript extractors
+
+```yaml
+extractors:
+  # JSON extractor
+  - type: json
+    name: server_version
+    json:
+      - '.version'
+      - '.build'
+  
+  # Regex extractor
+  - type: regex
+    name: banner
+    regex:
+      - '"banner":"(.+?)"'
+    group: 1
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Code protocol" icon="code" href="/templates/protocols/code">
+    Execute external code
+  </Card>
+  <Card title="File protocol" icon="file" href="/templates/protocols/file">
+    Local file scanning
+  </Card>
+</CardGroup>

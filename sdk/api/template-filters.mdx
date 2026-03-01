@@ -1,0 +1,442 @@
+---
+title: TemplateFilters API
+description: API reference for filtering templates in the Nuclei SDK
+---
+
+The `TemplateFilters` type allows you to control which templates are loaded and executed by the Nuclei engine.
+
+## Type definition
+
+```go
+type TemplateFilters struct {
+	Severity             string
+	ExcludeSeverities    string
+	ProtocolTypes        string
+	ExcludeProtocolTypes string
+	Authors              []string
+	Tags                 []string
+	ExcludeTags          []string
+	IncludeTags          []string
+	IDs                  []string
+	ExcludeIDs           []string
+	TemplateCondition    []string
+}
+```
+
+## Fields
+
+### Severity
+
+Filter templates by severity levels.
+
+<ParamField path="Severity" type="string">
+  Comma-separated list of severity levels to include
+</ParamField>
+
+**Accepted values:** `info`, `low`, `medium`, `high`, `critical`
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	Severity: "critical,high",
+})
+```
+
+This will only load templates with `critical` or `high` severity.
+
+### ExcludeSeverities
+
+Exclude templates by severity levels.
+
+<ParamField path="ExcludeSeverities" type="string">
+  Comma-separated list of severity levels to exclude
+</ParamField>
+
+**Accepted values:** `info`, `low`, `medium`, `high`, `critical`
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	ExcludeSeverities: "info,low",
+})
+```
+
+This will exclude all templates with `info` or `low` severity.
+
+<Note>
+  `Severity` and `ExcludeSeverities` can be used together to create precise filters.
+</Note>
+
+### ProtocolTypes
+
+Filter templates by protocol types.
+
+<ParamField path="ProtocolTypes" type="string">
+  Comma-separated list of protocol types to include
+</ParamField>
+
+**Accepted values:** `http`, `dns`, `tcp`, `ssl`, `websocket`, `whois`, `javascript`, `code`, `network`, `file`, `headless`
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	ProtocolTypes: "http,dns",
+})
+```
+
+This will only load HTTP and DNS protocol templates.
+
+### ExcludeProtocolTypes
+
+Exclude templates by protocol types.
+
+<ParamField path="ExcludeProtocolTypes" type="string">
+  Comma-separated list of protocol types to exclude
+</ParamField>
+
+**Accepted values:** Same as `ProtocolTypes`
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	ExcludeProtocolTypes: "code,file",
+})
+```
+
+This will exclude code and file protocol templates.
+
+### Authors
+
+Filter templates by author names.
+
+<ParamField path="Authors" type="[]string">
+  List of author names to filter by
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	Authors: []string{"pdteam", "geeknik"},
+})
+```
+
+This will only load templates authored by pdteam or geeknik.
+
+### Tags
+
+Filter templates by tags.
+
+<ParamField path="Tags" type="[]string">
+  List of tags that templates must have
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	Tags: []string{"cve", "rce"},
+})
+```
+
+This will load templates that have either the `cve` or `rce` tag.
+
+### ExcludeTags
+
+Exclude templates by tags.
+
+<ParamField path="ExcludeTags" type="[]string">
+  List of tags to exclude
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	ExcludeTags: []string{"intrusive", "dos"},
+})
+```
+
+This will exclude templates tagged with `intrusive` or `dos`.
+
+### IncludeTags
+
+Include only templates with specific tags.
+
+<ParamField path="IncludeTags" type="[]string">
+  List of tags that must be present
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	IncludeTags: []string{"safe", "passive"},
+})
+```
+
+<Note>
+  `Tags`, `IncludeTags`, and `ExcludeTags` can work together for fine-grained filtering.
+</Note>
+
+### IDs
+
+Filter templates by specific template IDs.
+
+<ParamField path="IDs" type="[]string">
+  List of template IDs to include
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	IDs: []string{"CVE-2021-44228", "self-signed-ssl"},
+})
+```
+
+This will only load the specified templates.
+
+### ExcludeIDs
+
+Exclude templates by specific template IDs.
+
+<ParamField path="ExcludeIDs" type="[]string">
+  List of template IDs to exclude
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	ExcludeIDs: []string{"test-template", "experimental-check"},
+})
+```
+
+This will exclude the specified templates.
+
+### TemplateCondition
+
+Advanced filtering using DSL expressions.
+
+<ParamField path="TemplateCondition" type="[]string">
+  List of DSL condition expressions
+</ParamField>
+
+**Example:**
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	TemplateCondition: []string{
+		"contains(tags, 'cve') && severity == 'critical'",
+		"contains(name, 'Apache')",
+	},
+})
+```
+
+This uses DSL expressions to create complex filtering logic.
+
+**Available DSL functions:**
+- `contains(field, value)` - Check if field contains value
+- `==` - Equality comparison
+- `!=` - Not equal comparison
+- `&&` - Logical AND
+- `||` - Logical OR
+
+## Usage examples
+
+### Filter by severity
+
+Only run critical and high severity templates:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity: "critical,high",
+	}),
+)
+```
+
+### Filter by CVE tags
+
+Only run CVE templates:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Tags: []string{"cve"},
+	}),
+)
+```
+
+### Filter by protocol
+
+Only run HTTP templates:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		ProtocolTypes: "http",
+	}),
+)
+```
+
+### Exclude intrusive templates
+
+Run all templates except those tagged as intrusive:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		ExcludeTags: []string{"intrusive", "dos"},
+	}),
+)
+```
+
+### Run specific templates
+
+Run only specific templates by ID:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		IDs: []string{
+			"CVE-2021-44228",
+			"CVE-2022-0543",
+			"CVE-2023-12345",
+		},
+	}),
+)
+```
+
+### Complex combined filters
+
+Combine multiple filters for precise control:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity:          "high,critical",
+		ExcludeSeverities: "info",
+		ProtocolTypes:     "http",
+		Tags:              []string{"cve"},
+		ExcludeTags:       []string{"intrusive"},
+		Authors:           []string{"pdteam"},
+	}),
+)
+```
+
+This configuration will:
+- Only include high and critical severity templates
+- Exclude info severity templates
+- Only include HTTP protocol templates
+- Include templates with CVE tag
+- Exclude intrusive templates
+- Only include templates by pdteam
+
+### Safe scanning profile
+
+Create a safe scanning profile:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		IncludeTags: []string{"safe"},
+		ExcludeTags: []string{"intrusive", "dos", "exploit"},
+		ExcludeProtocolTypes: "code",
+	}),
+)
+```
+
+### Production vulnerability scan
+
+Configuration for production environments:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity:    "critical,high",
+		Tags:        []string{"cve", "exposure"},
+		ExcludeTags: []string{"intrusive", "dos"},
+		ProtocolTypes: "http,dns",
+	}),
+)
+```
+
+### OAST-based detection
+
+Only run templates using out-of-band techniques:
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Tags: []string{"oast"},
+	}),
+)
+```
+
+## Common tag categories
+
+### Security categories
+- `cve` - CVE templates
+- `rce` - Remote code execution
+- `lfi` - Local file inclusion
+- `sqli` - SQL injection
+- `xss` - Cross-site scripting
+- `ssrf` - Server-side request forgery
+- `xxe` - XML external entity
+
+### Detection types
+- `tech` - Technology detection
+- `exposure` - Sensitive data exposure
+- `misconfig` - Misconfiguration
+- `default-login` - Default credentials
+- `panel` - Admin panels
+
+### Scan characteristics
+- `intrusive` - Intrusive checks
+- `dos` - Denial of service
+- `oast` - Out-of-band testing
+- `safe` - Safe to run
+- `passive` - Passive detection
+
+## Filter precedence
+
+When multiple filters are specified:
+
+1. **Include filters** (`Severity`, `ProtocolTypes`, `Tags`, `Authors`, `IDs`) are applied first
+2. **Exclude filters** (`ExcludeSeverities`, `ExcludeProtocolTypes`, `ExcludeTags`, `ExcludeIDs`) are applied second
+3. **DSL conditions** (`TemplateCondition`) are applied last
+
+A template must match ALL include filters and NOT match ANY exclude filters to be loaded.
+
+## Performance tips
+
+<Check>Use specific filters to reduce template loading time</Check>
+<Check>Filter by protocol type when targeting specific services</Check>
+<Check>Use ID filters when you know exactly which templates to run</Check>
+<Check>Combine severity and tag filters for security-focused scans</Check>
+<Check>Use exclude filters to remove large template categories</Check>
+
+## Best practices
+
+1. **Start broad, then narrow**: Begin with broad filters and refine based on results
+2. **Use severity wisely**: Filter by severity appropriate for your environment
+3. **Avoid intrusive templates in production**: Always exclude intrusive tags in production
+4. **Test filters first**: Test filter combinations on safe targets before production use
+5. **Document your filters**: Keep a record of filter configurations for different scenarios
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="TemplateSources" icon="folder" href="/sdk/api/options#withtemplateso rworkflows">
+    Learn about loading custom templates
+  </Card>
+  <Card title="Basic usage" icon="play" href="/sdk/basic-usage">
+    See template filters in action
+  </Card>
+</CardGroup>

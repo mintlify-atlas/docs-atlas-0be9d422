@@ -1,0 +1,369 @@
+---
+title: Matchers
+description: Pattern matching for detecting vulnerabilities in responses
+---
+
+Matchers are the detection mechanism in Nuclei templates that determine whether a request was successful by performing pattern matching on request/response data. They are the core logic that identifies vulnerabilities, misconfigurations, or specific conditions.
+
+## Matcher types
+
+Nuclei supports multiple matcher types for different matching scenarios:
+
+<Tabs>
+  <Tab title="Word">
+    Match specific words or phrases in the response.
+
+    ```yaml
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+          - "mail.protection.outlook.com"
+    ```
+  </Tab>
+  
+  <Tab title="Regex">
+    Match using regular expressions (Go regex engine).
+
+    ```yaml
+    matchers:
+      - type: regex
+        regex:
+          - "(?mi)^Via\\s*?:.*?linkerd.*$"
+          - "(?m)^(?:Location\\s*?:\\s*?)(?:https?://|//)?(?:[a-zA-Z0-9\\-_\\.@]*)example\\.com.*$"
+    ```
+
+    <Note>Go regex engine does not support lookaheads or lookbehinds.</Note>
+  </Tab>
+  
+  <Tab title="Status">
+    Match HTTP status codes.
+
+    ```yaml
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 302
+    ```
+  </Tab>
+  
+  <Tab title="Size">
+    Match response size in bytes.
+
+    ```yaml
+    matchers:
+      - type: size
+        size:
+          - 3029
+          - 2042
+    ```
+  </Tab>
+  
+  <Tab title="Binary">
+    Match binary patterns (hex-encoded).
+
+    ```yaml
+    matchers:
+      - type: binary
+        binary:
+          - "4a4156412050524f46494c45"  # JAVA PROFILE
+          - "4850524f46"                # HPROF
+          - "1f8b080000000000"          # Gunzip magic byte
+    ```
+  </Tab>
+  
+  <Tab title="DSL">
+    Match using Domain Specific Language expressions with helper functions.
+
+    ```yaml
+    matchers:
+      - type: dsl
+        dsl:
+          - "contains(body, 'packages') && contains(tolower(all_headers), 'application/octet-stream') && status_code == 200"
+          - "!contains(tolower(all_headers), 'strict-transport-security')"
+    ```
+  </Tab>
+  
+  <Tab title="XPath">
+    Match using XPath queries on HTML/XML responses.
+
+    ```yaml
+    matchers:
+      - type: xpath
+        xpath:
+          - "/html/head/title[contains(text(), 'How to Find XPath')]"
+          - "//a[@target='_blank']"
+    ```
+  </Tab>
+</Tabs>
+
+## Matcher conditions
+
+Control how multiple matchers are evaluated using conditions:
+
+<ParamField path="condition" type="string" default="or">
+  The logical condition between matcher values within a single matcher.
+  
+  - `and` - All patterns must match
+  - `or` - Any pattern can match
+</ParamField>
+
+<ParamField path="matchers-condition" type="string" default="or">
+  The logical condition between multiple matchers in a request.
+  
+  - `and` - All matchers must succeed
+  - `or` - Any matcher can succeed
+</ParamField>
+
+### Example with conditions
+
+```yaml
+http:
+  - path:
+      - "{{BaseURL}}/.git/config"
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      - type: dsl
+        condition: and
+        dsl:
+          - "!contains(tolower(body), '<html')"
+          - "!contains(tolower(body), '<body')"
+      - type: status
+        status:
+          - 200
+```
+
+## Matcher options
+
+<ParamField path="part" type="string" default="body">
+  The part of the response to match against. Each protocol exposes different parts.
+  
+  Common HTTP parts: `body`, `header`, `all`, `status_code`, `raw`
+</ParamField>
+
+<ParamField path="negative" type="boolean" default="false">
+  Reverse the match result. Only matches if the condition is NOT true.
+  
+  ```yaml
+  matchers:
+    - type: word
+      negative: true
+      words:
+        - "ERROR"
+  ```
+</ParamField>
+
+<ParamField path="name" type="string">
+  Name for the matcher. Names should be lowercase without spaces or underscores.
+  
+  ```yaml
+  matchers:
+    - type: word
+      name: "cookie-matcher"
+      words:
+        - "Set-Cookie"
+  ```
+</ParamField>
+
+<ParamField path="case-insensitive" type="boolean" default="false">
+  Enable case-insensitive matching for word and regex matchers.
+  
+  ```yaml
+  matchers:
+    - type: word
+      case-insensitive: true
+      words:
+        - "wordpress"
+  ```
+</ParamField>
+
+<ParamField path="match-all" type="boolean" default="false">
+  Require all values to match, ignoring the condition parameter.
+  
+  ```yaml
+  matchers:
+    - type: word
+      match-all: true
+      words:
+        - "admin"
+        - "password"
+  ```
+</ParamField>
+
+<ParamField path="encoding" type="string">
+  Encoding for the words field. Currently supports `hex`.
+  
+  ```yaml
+  matchers:
+    - type: word
+      encoding: hex
+      words:
+        - "3c68746d6c3e"  # <html>
+  ```
+</ParamField>
+
+<ParamField path="internal" type="boolean" default="false">
+  Hide the matcher from output. Useful in flow templates for internal conditions.
+  
+  ```yaml
+  matchers:
+    - type: word
+      internal: true
+      words:
+        - ".vercel-dns.com"
+  ```
+</ParamField>
+
+## Multi-request matching
+
+When using `req-condition: true` or multiple requests, you can match across requests using indexed variables:
+
+```yaml
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/200"
+      - "{{BaseURL}}/400"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "status_code_1==200 && status_code_2==400"
+```
+
+## Real-world examples
+
+<CodeGroup>
+```yaml Git Config Exposure
+id: git-config-exposure
+
+info:
+  name: Git Config File Disclosure
+  author: pdteam
+  severity: medium
+
+http:
+  - path:
+      - "{{BaseURL}}/.git/config"
+    
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "[core]"
+      
+      - type: dsl
+        condition: and
+        dsl:
+          - "!contains(tolower(body), '<html')"
+          - "!contains(tolower(body), '<body')"
+      
+      - type: status
+        status:
+          - 200
+```
+
+```yaml WordPress Detection
+id: wordpress-detect
+
+info:
+  name: WordPress Detection
+  author: pdteam
+  severity: info
+
+http:
+  - path:
+      - "{{BaseURL}}/wp-login.php"
+    
+    matchers:
+      - type: word
+        condition: and
+        words:
+          - "WordPress"
+          - "wp-content"
+```
+
+```yaml Subdomain Takeover
+id: cname-takeover
+
+info:
+  name: CNAME Subdomain Takeover
+  author: pdteam
+  severity: high
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    matchers:
+      - type: word
+        words:
+          - ".vercel-dns.com"
+          - ".herokuapp.com"
+          - ".azurewebsites.net"
+```
+</CodeGroup>
+
+## Protocol-specific parts
+
+<Tabs>
+  <Tab title="HTTP">
+    - `body` - Response body (default)
+    - `header` - Response headers
+    - `all_headers` - All headers concatenated
+    - `status_code` - HTTP status code
+    - `raw` - Raw HTTP response
+    - `request` - HTTP request
+    - `content_length` - Response content length
+    - `duration` - Request duration
+  </Tab>
+  
+  <Tab title="DNS">
+    - `raw` - Raw DNS response (default)
+    - `rcode` - DNS response code
+    - `question` - DNS question field
+    - `answer` - DNS answer field
+    - `ns` - DNS nameserver field
+    - `extra` - DNS extra field
+  </Tab>
+  
+  <Tab title="Network">
+    - `raw` - Raw network response (default)
+    - `request` - Network request
+    - `data` - Response data
+  </Tab>
+</Tabs>
+
+<Warning>
+  When using multiple matchers with `matchers-condition: and`, all matchers must succeed for the template to match. This is commonly used to reduce false positives.
+</Warning>
+
+## Best practices
+
+1. **Use specific matchers** - Combine multiple matcher types to reduce false positives
+2. **Name your matchers** - Use descriptive names when working with workflows or debugging
+3. **Use DSL for complex logic** - DSL matchers provide the most flexibility for complex conditions
+4. **Test negative cases** - Use `negative: true` to exclude known false positives
+5. **Match on multiple parts** - Don't rely solely on body content; include headers or status codes
+6. **Use internal matchers** - Hide intermediate matchers in flow templates with `internal: true`
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Extractors" icon="filter" href="/templates/extractors">
+    Extract data from responses
+  </Card>
+  <Card title="Helper Functions" icon="function" href="/templates/helper-functions">
+    DSL helper functions
+  </Card>
+  <Card title="Flow Control" icon="code-branch" href="/templates/flow-control">
+    Conditional execution
+  </Card>
+  <Card title="Workflows" icon="diagram-project" href="/templates/workflows">
+    Multi-template execution
+  </Card>
+</CardGroup>

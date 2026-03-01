@@ -1,0 +1,676 @@
+---
+title: Template selection
+description: Learn how to select and run specific templates, workflows, and template directories in Nuclei
+---
+
+## Template basics
+
+Nuclei uses YAML-based templates to define vulnerability detection logic. You can run all templates, specific templates, or templates from certain directories.
+
+## Default template behavior
+
+When you run Nuclei without specifying templates, it uses all templates from the nuclei-templates repository:
+
+```bash
+nuclei -target https://example.com
+```
+
+<Note>
+  Nuclei automatically downloads and updates templates from the [nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) repository on first run.
+</Note>
+
+## Running specific templates
+
+### Single template file
+
+Run a specific template by providing its path:
+
+```bash
+nuclei -target https://example.com -templates http/cves/2021/CVE-2021-44228.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -t http/cves/2021/CVE-2021-44228.yaml
+```
+
+### Multiple template files
+
+Run multiple specific templates:
+
+```bash
+nuclei -target https://example.com \
+  -templates http/cves/2021/CVE-2021-44228.yaml \
+  -templates http/exposures/configs/git-config.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com \
+  -t http/cves/2021/CVE-2021-44228.yaml \
+  -t http/exposures/configs/git-config.yaml
+```
+
+### Templates from file
+
+Provide a list of templates in a file:
+
+```txt my-templates.txt
+http/cves/2021/CVE-2021-44228.yaml
+http/vulnerabilities/wordpress/
+network/
+```
+
+Run templates from the file:
+```bash
+nuclei -target https://example.com -templates my-templates.txt
+```
+
+## Template directories
+
+### Run entire directory
+
+Run all templates in a directory:
+
+<CodeGroup>
+```bash CVE templates
+nuclei -target https://example.com -templates http/cves/
+```
+
+```bash Exposure templates
+nuclei -target https://example.com -templates http/exposures/
+```
+
+```bash Network templates
+nuclei -target https://example.com -templates network/
+```
+
+```bash All CVEs from 2024
+nuclei -target https://example.com -templates http/cves/2024/
+```
+</CodeGroup>
+
+### Multiple directories
+
+Run templates from multiple directories:
+
+```bash
+nuclei -target https://example.com \
+  -templates http/cves/ \
+  -templates http/vulnerabilities/ \
+  -templates network/
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -t http/cves/ -t ssl/ -t dns/
+```
+
+## Remote templates
+
+Load templates from remote URLs:
+
+### Single remote template
+
+```bash
+nuclei -target https://example.com \
+  -template-url https://raw.githubusercontent.com/projectdiscovery/nuclei-templates/main/http/cves/2021/CVE-2021-44228.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -turl https://example.com/custom-template.yaml
+```
+
+### Multiple remote templates
+
+```bash
+nuclei -target https://example.com \
+  -template-url https://example.com/template1.yaml \
+  -template-url https://example.com/template2.yaml
+```
+
+### Remote template list
+
+Load URLs from a file:
+
+```txt remote-templates.txt
+https://example.com/template1.yaml
+https://example.com/template2.yaml
+https://raw.githubusercontent.com/org/repo/main/template.yaml
+```
+
+```bash
+nuclei -target https://example.com -template-url remote-templates.txt
+```
+
+<Warning>
+  Only load templates from trusted sources. Malicious templates can execute arbitrary code.
+</Warning>
+
+## Workflows
+
+Workflows enable multi-step template execution with conditional logic:
+
+### Run a workflow
+
+```bash
+nuclei -target https://example.com -workflows workflows/wordpress-workflow.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -w workflows/wordpress-workflow.yaml
+```
+
+### Multiple workflows
+
+```bash
+nuclei -target https://example.com \
+  -workflows workflows/wordpress-workflow.yaml \
+  -workflows workflows/jira-workflow.yaml
+```
+
+### Workflow directories
+
+```bash
+nuclei -target https://example.com -workflows workflows/
+```
+
+### Remote workflows
+
+```bash
+nuclei -target https://example.com \
+  -workflow-url https://example.com/custom-workflow.yaml
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -wurl https://example.com/workflow.yaml
+```
+
+<Info>
+  Workflows allow you to create complex scanning logic where templates execute conditionally based on previous results.
+</Info>
+
+## Template profiles
+
+Template profiles provide pre-configured template sets for common scenarios:
+
+### List available profiles
+
+```bash
+nuclei -profile-list
+```
+
+Short flag:
+```bash
+nuclei -tpl
+```
+
+### Use a profile
+
+```bash
+nuclei -target https://example.com -profile cves
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -tp cves
+```
+
+Common profiles:
+- `cves` - All CVE templates
+- `exposures` - Information disclosure
+- `technologies` - Technology detection
+- `misconfigurations` - Security misconfigurations
+
+## Template ID selection
+
+Select templates by their ID:
+
+### Single template ID
+
+```bash
+nuclei -target https://example.com -template-id CVE-2021-44228
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -id CVE-2021-44228
+```
+
+### Multiple template IDs
+
+```bash
+nuclei -target https://example.com \
+  -template-id CVE-2021-44228,CVE-2021-26855,CVE-2020-14882
+```
+
+### Template IDs from file
+
+```txt template-ids.txt
+CVE-2021-44228
+CVE-2021-26855
+wp-login-brute
+```
+
+```bash
+nuclei -target https://example.com -template-id template-ids.txt
+```
+
+### Wildcard matching
+
+Use wildcards to match multiple template IDs:
+
+```bash
+# All Log4j CVEs
+nuclei -target https://example.com -template-id CVE-2021-4*
+
+# All 2024 CVEs
+nuclei -target https://example.com -template-id CVE-2024-*
+```
+
+<Tip>
+  Wildcard matching is useful for running all templates related to a specific vulnerability family.
+</Tip>
+
+## Template exclusion
+
+### Exclude specific templates
+
+```bash
+nuclei -target https://example.com \
+  -templates http/cves/ \
+  -exclude-templates http/cves/2018/
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -t http/ -et http/fuzzing/
+```
+
+### Exclude by template ID
+
+```bash
+nuclei -target https://example.com \
+  -exclude-id CVE-2021-44228,wordpress-login
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -eid CVE-2021-44228
+```
+
+### Exclude templates from file
+
+```txt exclude-templates.txt
+http/fuzzing/
+network/detection/
+CVE-2018-*
+```
+
+```bash
+nuclei -target https://example.com -exclude-templates exclude-templates.txt
+```
+
+## Force include templates
+
+Include templates even if they're in the default exclusion list:
+
+### Include specific templates
+
+```bash
+nuclei -target https://example.com -include-templates http/fuzzing/
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -it http/fuzzing/
+```
+
+### Include by tag
+
+```bash
+nuclei -target https://example.com -include-tags dos
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -itags dos
+```
+
+### Include by ID
+
+```bash
+nuclei -target https://example.com -include-id aggressive-scan
+```
+
+<Warning>
+  Some templates are excluded by default because they may be disruptive or generate false positives. Use include flags carefully.
+</Warning>
+
+## New templates only
+
+### Latest release templates
+
+Run only templates added in the most recent nuclei-templates release:
+
+```bash
+nuclei -target https://example.com -new-templates
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -nt
+```
+
+### Specific version templates
+
+Run templates added in a specific version:
+
+```bash
+nuclei -target https://example.com -new-templates-version v9.6.0
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -ntv v9.6.0
+```
+
+### Multiple versions
+
+```bash
+nuclei -target https://example.com \
+  -new-templates-version v9.6.0,v9.5.0
+```
+
+<Info>
+  This is useful for testing newly released templates against your infrastructure.
+</Info>
+
+## Automatic template selection
+
+Automatically select templates based on detected technologies:
+
+```bash
+nuclei -target https://example.com -automatic-scan
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -as
+```
+
+Nuclei uses Wappalyzer technology detection to identify the technology stack and run relevant templates.
+
+## Template validation
+
+Validate template syntax without running scans:
+
+```bash
+nuclei -validate -templates custom-templates/
+```
+
+### Display template contents
+
+```bash
+nuclei -template-display -templates http/cves/2021/CVE-2021-44228.yaml
+```
+
+Short flag:
+```bash
+nuclei -td -t http/cves/2021/CVE-2021-44228.yaml
+```
+
+### List all templates
+
+List all templates matching current filters:
+
+```bash
+nuclei -template-list -tags cve,critical
+```
+
+Short flag:
+```bash
+nuclei -tl -tags cve
+```
+
+### List available tags
+
+Display all available template tags:
+
+```bash
+nuclei -tag-list
+```
+
+Short flag:
+```bash
+nuclei -tgl
+```
+
+## AI-generated templates
+
+Generate and run templates using AI:
+
+```bash
+nuclei -target https://example.com \
+  -prompt "Check for SQL injection in login form"
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -ai "Test for XSS vulnerabilities"
+```
+
+<Note>
+  AI template generation requires API configuration and is an experimental feature.
+</Note>
+
+## Custom template directory
+
+Update or specify custom template directory:
+
+```bash
+# Update templates to custom directory
+nuclei -update-templates -update-template-dir /custom/templates/
+
+# Use custom directory for scans
+nuclei -target https://example.com -templates /custom/templates/http/
+```
+
+Short flags:
+```bash
+nuclei -ut -ud /custom/templates/
+```
+
+## Special template types
+
+### Code templates
+
+Enable code protocol templates:
+
+```bash
+nuclei -target https://example.com -code
+```
+
+<Warning>
+  Code templates can execute arbitrary code. Only enable for trusted templates.
+</Warning>
+
+### Self-contained templates
+
+Enable self-contained templates:
+
+```bash
+nuclei -target https://example.com -enable-self-contained
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -esc
+```
+
+### Global matchers
+
+Enable global matcher templates:
+
+```bash
+nuclei -target https://example.com -enable-global-matchers
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -egm
+```
+
+### File templates
+
+Enable file protocol templates:
+
+```bash
+nuclei -target https://example.com -file
+```
+
+### Unsigned templates
+
+Disable unsigned templates for security:
+
+```bash
+nuclei -target https://example.com -disable-unsigned-templates
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -dut
+```
+
+## Practical examples
+
+### Example 1: CVE scanning
+
+Scan for all critical CVEs from 2024:
+
+```bash
+nuclei -target https://example.com \
+  -templates http/cves/2024/ \
+  -severity critical,high \
+  -json-export cve-findings.json
+```
+
+### Example 2: Technology-specific scan
+
+Scan WordPress site with relevant templates:
+
+```bash
+nuclei -target https://wordpress-site.com \
+  -tags wordpress \
+  -workflows workflows/wordpress-workflow.yaml \
+  -severity medium,high,critical
+```
+
+### Example 3: Custom template testing
+
+Test custom templates before deployment:
+
+```bash
+nuclei -validate -templates /path/to/custom-templates/ -verbose
+```
+
+### Example 4: Targeted ID scan
+
+Scan for specific vulnerabilities:
+
+```bash
+nuclei -list targets.txt \
+  -template-id CVE-2021-44228,CVE-2021-45046,CVE-2021-45105 \
+  -rate-limit 100 \
+  -output log4j-scan.txt
+```
+
+### Example 5: Exclude noisy templates
+
+Run all templates except fuzzing and detection:
+
+```bash
+nuclei -target https://example.com \
+  -exclude-templates http/fuzzing/,network/detection/ \
+  -exclude-tags dos,intrusive
+```
+
+### Example 6: Latest templates only
+
+Test with newest templates:
+
+```bash
+nuclei -list production-targets.txt \
+  -new-templates \
+  -severity high,critical \
+  -silent \
+  -json-export new-template-findings.json
+```
+
+## Template organization tips
+
+<Steps>
+  <Step title="Use template profiles">
+    Start with profiles for common scenarios:
+    ```bash
+    nuclei -target example.com -profile cves
+    ```
+  </Step>
+  
+  <Step title="Combine with filters">
+    Mix template selection with severity filters:
+    ```bash
+    nuclei -target example.com -templates http/cves/ -severity critical,high
+    ```
+  </Step>
+  
+  <Step title="Create template lists">
+    Maintain lists for different scan types:
+    ```bash
+    nuclei -target example.com -templates production-safe.txt
+    ```
+  </Step>
+  
+  <Step title="Validate before running">
+    Always validate custom templates:
+    ```bash
+    nuclei -validate -templates custom/ && nuclei -u example.com -t custom/
+    ```
+  </Step>
+</Steps>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Filtering templates"
+    icon="funnel"
+    href="/usage/filtering-templates"
+  >
+    Filter templates by tags, severity, and more
+  </Card>
+  <Card
+    title="Writing templates"
+    icon="code"
+    href="/templates/introduction"
+  >
+    Create your own custom templates
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Export and format scan results
+  </Card>
+  <Card
+    title="Rate limiting"
+    icon="gauge"
+    href="/usage/rate-limiting"
+  >
+    Control template execution speed
+  </Card>
+</CardGroup>

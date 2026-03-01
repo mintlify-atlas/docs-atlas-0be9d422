@@ -1,0 +1,333 @@
+---
+title: Basic usage
+description: Learn the fundamentals of using the Nuclei SDK with practical examples
+---
+
+This guide covers the essential patterns for using the Nuclei SDK in your Go applications.
+
+## Creating an engine
+
+The first step is to create a Nuclei engine instance:
+
+```go
+import nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+
+ne, err := nuclei.NewNucleiEngine()
+if err != nil {
+	panic(err)
+}
+defer ne.Close()
+```
+
+<Note>
+  Always call `defer ne.Close()` to ensure proper cleanup of resources.
+</Note>
+
+## Loading targets
+
+Targets can be loaded in multiple ways:
+
+### From a slice
+
+```go
+// Load targets without HTTP probing
+ne.LoadTargets([]string{"scanme.sh", "example.com"}, false)
+
+// Load targets with HTTP probing (auto-detect HTTP/HTTPS)
+ne.LoadTargets([]string{"scanme.sh", "example.com"}, true)
+```
+
+### From a reader
+
+```go
+import (
+	"os"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+)
+
+file, err := os.Open("targets.txt")
+if err != nil {
+	panic(err)
+}
+defer file.Close()
+
+ne.LoadTargetsFromReader(file, false)
+```
+
+### From HTTP request files
+
+```go
+// Load from Burp XML export
+err := ne.LoadTargetsWithHttpData("burp-export.xml", "burp")
+
+// Load from OpenAPI specification
+err := ne.LoadTargetsWithHttpData("openapi.yaml", "openapi")
+
+// Load from Swagger specification
+err := ne.LoadTargetsWithHttpData("swagger.json", "swagger")
+```
+
+<Warning>
+  `LoadTargetsWithHttpData` is mutually exclusive with `LoadTargets` and `LoadTargetsFromReader`. Use only one method per scan.
+</Warning>
+
+## Filtering templates
+
+Filter which templates to run using template filters:
+
+### By severity
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity: "critical,high",
+	}),
+)
+```
+
+### By tags
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Tags: []string{"cve", "rce"},
+	}),
+)
+```
+
+### By protocol type
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		ProtocolTypes: "http,dns",
+	}),
+)
+```
+
+### By template IDs
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		IDs: []string{"self-signed-ssl", "CVE-2021-44228"},
+	}),
+)
+```
+
+## Executing scans
+
+### Basic execution
+
+```go
+// Execute with default output (JSON to stdout)
+err = ne.ExecuteWithCallback(nil)
+if err != nil {
+	panic(err)
+}
+```
+
+### With custom callback
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/output"
+
+err = ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	fmt.Printf("[%s] %s\n", event.TemplateID, event.Host)
+})
+```
+
+### With context
+
+```go
+import "context"
+
+ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+defer cancel()
+
+err = ne.ExecuteCallbackWithCtx(ctx, func(event *output.ResultEvent) {
+	fmt.Printf("Found: %s\n", event.TemplateID)
+})
+```
+
+## Complete examples
+
+### Simple vulnerability scan
+
+```go
+package main
+
+import (
+	"fmt"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+	"github.com/projectdiscovery/nuclei/v3/pkg/output"
+)
+
+func main() {
+	// Create engine with critical severity filter
+	ne, err := nuclei.NewNucleiEngine(
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+			Severity: "critical",
+		}),
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+
+	// Load targets
+	ne.LoadTargets([]string{"scanme.sh"}, false)
+
+	// Execute with callback
+	err = ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+		fmt.Printf("[%s] %s found on %s\n",
+			event.Info.Severity,
+			event.TemplateID,
+			event.Host,
+		)
+	})
+
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+### Scan with OAST templates
+
+```go
+package main
+
+import (
+	"context"
+	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
+)
+
+func main() {
+	ne, err := nuclei.NewNucleiEngineCtx(
+		context.Background(),
+		nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+			Tags: []string{"oast"},
+		}),
+		nuclei.EnableStatsWithOpts(nuclei.StatsOptions{
+			MetricServerPort: 6064,
+		}),
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer ne.Close()
+
+	ne.LoadTargets([]string{"http://honey.scanme.sh"}, false)
+
+	err = ne.ExecuteWithCallback(nil)
+	if err != nil {
+		panic(err)
+	}
+}
+```
+
+## Working with results
+
+The `ResultEvent` struct contains detailed information about findings:
+
+```go
+func processResult(event *output.ResultEvent) {
+	// Template information
+	fmt.Println("Template ID:", event.TemplateID)
+	fmt.Println("Template Path:", event.TemplatePath)
+	fmt.Println("Template Name:", event.Info.Name)
+	
+	// Severity and classification
+	fmt.Println("Severity:", event.Info.Severity)
+	fmt.Println("Tags:", event.Info.Tags)
+	
+	// Target information
+	fmt.Println("Host:", event.Host)
+	fmt.Println("Matched:", event.Matched)
+	
+	// Extracted data
+	fmt.Println("Extracted:", event.ExtractedResults)
+	
+	// Request/Response (if available)
+	fmt.Println("Request:", event.Request)
+	fmt.Println("Response:", event.Response)
+}
+```
+
+## Error handling
+
+Handle common errors appropriately:
+
+```go
+err := ne.ExecuteWithCallback(callback)
+if err != nil {
+	switch err {
+	case nuclei.ErrNoTemplatesAvailable:
+		fmt.Println("No templates matched the filters")
+	case nuclei.ErrNoTargetsAvailable:
+		fmt.Println("No targets were loaded")
+	default:
+		fmt.Printf("Execution error: %v\n", err)
+	}
+}
+```
+
+## Common patterns
+
+### Scanning multiple targets
+
+```go
+targets := []string{
+	"example.com",
+	"test.com",
+	"demo.com",
+}
+
+ne.LoadTargets(targets, false)
+err = ne.ExecuteWithCallback(processResults)
+```
+
+### Combining multiple filters
+
+```go
+ne, err := nuclei.NewNucleiEngine(
+	nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+		Severity:      "high,critical",
+		Tags:          []string{"cve"},
+		ProtocolTypes: "http",
+		ExcludeTags:   []string{"intrusive"},
+	}),
+)
+```
+
+### Collecting all results
+
+```go
+var results []*output.ResultEvent
+
+err = ne.ExecuteWithCallback(func(event *output.ResultEvent) {
+	results = append(results, event)
+})
+
+fmt.Printf("Total findings: %d\n", len(results))
+```
+
+## Best practices
+
+<Check>Always close the engine with `defer ne.Close()`</Check>
+<Check>Use context for timeout control</Check>
+<Check>Handle errors from all SDK methods</Check>
+<Check>Use appropriate template filters to reduce scan time</Check>
+<Check>Test with safe targets before production use</Check>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Advanced usage" icon="star" href="/sdk/advanced-usage">
+    Learn advanced patterns and optimizations
+  </Card>
+  <Card title="Configuration options" icon="sliders" href="/sdk/configuration-options">
+    Explore all configuration options
+  </Card>
+</CardGroup>

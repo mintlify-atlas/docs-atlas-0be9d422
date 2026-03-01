@@ -1,0 +1,752 @@
+---
+title: Configuration options
+description: Complete reference of all Nuclei SDK configuration options
+---
+
+This page provides a comprehensive reference of all configuration options available in the Nuclei SDK.
+
+## Engine creation options
+
+### NewNucleiEngine
+
+Creates a standard single-instance Nuclei engine.
+
+```go
+ne, err := nuclei.NewNucleiEngine(options...)
+```
+
+### NewNucleiEngineCtx
+
+Creates a Nuclei engine with a custom context.
+
+```go
+ctx := context.WithTimeout(context.Background(), 10*time.Minute)
+ne, err := nuclei.NewNucleiEngineCtx(ctx, options...)
+```
+
+### NewThreadSafeNucleiEngine
+
+Creates a thread-safe Nuclei engine for concurrent scanning.
+
+```go
+ne, err := nuclei.NewThreadSafeNucleiEngine(options...)
+```
+
+### NewThreadSafeNucleiEngineCtx
+
+Creates a thread-safe Nuclei engine with a custom context.
+
+```go
+ctx := context.Background()
+ne, err := nuclei.NewThreadSafeNucleiEngineCtx(ctx, options...)
+```
+
+## Template options
+
+### WithTemplatesOrWorkflows
+
+Specifies template and workflow sources to load.
+
+```go
+nuclei.WithTemplatesOrWorkflows(nuclei.TemplateSources{
+	Templates:       []string{"/path/to/templates"},
+	Workflows:       []string{"/path/to/workflows"},
+	RemoteTemplates: []string{"https://example.com/template.yaml"},
+	RemoteWorkflows: []string{"https://example.com/workflow.yaml"},
+	TrustedDomains:  []string{"example.com"},
+})
+```
+
+<ParamField path="Templates" type="[]string">
+  Local template file or directory paths
+</ParamField>
+
+<ParamField path="Workflows" type="[]string">
+  Local workflow file or directory paths
+</ParamField>
+
+<ParamField path="RemoteTemplates" type="[]string">
+  Remote template URLs
+</ParamField>
+
+<ParamField path="RemoteWorkflows" type="[]string">
+  Remote workflow URLs
+</ParamField>
+
+<ParamField path="TrustedDomains" type="[]string">
+  Trusted domains for remote templates/workflows
+</ParamField>
+
+### WithTemplateFilters
+
+Filters which templates to load and execute.
+
+```go
+nuclei.WithTemplateFilters(nuclei.TemplateFilters{
+	Severity:             "critical,high",
+	ExcludeSeverities:    "info,low",
+	ProtocolTypes:        "http,dns",
+	ExcludeProtocolTypes: "code",
+	Authors:              []string{"pdteam"},
+	Tags:                 []string{"cve", "rce"},
+	ExcludeTags:          []string{"intrusive"},
+	IncludeTags:          []string{"safe"},
+	IDs:                  []string{"CVE-2021-44228"},
+	ExcludeIDs:           []string{"test-template"},
+	TemplateCondition:    []string{"contains(tags, 'cve')"},
+})
+```
+
+<ParamField path="Severity" type="string">
+  Filter by severities (CSV: info, low, medium, high, critical)
+</ParamField>
+
+<ParamField path="ExcludeSeverities" type="string">
+  Exclude severities (CSV: info, low, medium, high, critical)
+</ParamField>
+
+<ParamField path="ProtocolTypes" type="string">
+  Filter by protocol types (CSV: http, dns, tcp, ssl, etc.)
+</ParamField>
+
+<ParamField path="ExcludeProtocolTypes" type="string">
+  Exclude protocol types
+</ParamField>
+
+<ParamField path="Authors" type="[]string">
+  Filter by template authors
+</ParamField>
+
+<ParamField path="Tags" type="[]string">
+  Filter by tags present in templates
+</ParamField>
+
+<ParamField path="ExcludeTags" type="[]string">
+  Exclude templates with specific tags
+</ParamField>
+
+<ParamField path="IncludeTags" type="[]string">
+  Include templates with specific tags
+</ParamField>
+
+<ParamField path="IDs" type="[]string">
+  Filter by template IDs
+</ParamField>
+
+<ParamField path="ExcludeIDs" type="[]string">
+  Exclude specific template IDs
+</ParamField>
+
+<ParamField path="TemplateCondition" type="[]string">
+  DSL conditions/expressions for template filtering
+</ParamField>
+
+## Concurrency options
+
+### WithConcurrency
+
+Controls concurrency for various scanning operations.
+
+```go
+nuclei.WithConcurrency(nuclei.Concurrency{
+	TemplateConcurrency:           25,
+	HostConcurrency:               25,
+	HeadlessHostConcurrency:       10,
+	HeadlessTemplateConcurrency:   10,
+	JavascriptTemplateConcurrency: 120,
+	TemplatePayloadConcurrency:    25,
+	ProbeConcurrency:              50,
+})
+```
+
+<ParamField path="TemplateConcurrency" type="int" required>
+  Number of templates to run concurrently (per host in host-spray mode)
+</ParamField>
+
+<ParamField path="HostConcurrency" type="int" required>
+  Number of hosts to scan concurrently (per template in template-spray mode)
+</ParamField>
+
+<ParamField path="HeadlessHostConcurrency" type="int" required>
+  Number of hosts to scan concurrently for headless templates
+</ParamField>
+
+<ParamField path="HeadlessTemplateConcurrency" type="int" required>
+  Number of headless templates to run concurrently
+</ParamField>
+
+<ParamField path="JavascriptTemplateConcurrency" type="int" required>
+  Number of JavaScript templates to run concurrently
+</ParamField>
+
+<ParamField path="TemplatePayloadConcurrency" type="int" required>
+  Maximum concurrent payloads per template (recommended: 25)
+</ParamField>
+
+<ParamField path="ProbeConcurrency" type="int" required>
+  Maximum concurrent HTTP probes (recommended: 50)
+</ParamField>
+
+### WithGlobalRateLimit
+
+Sets global rate limit for all hosts combined.
+
+```go
+nuclei.WithGlobalRateLimit(150, time.Second)
+```
+
+<ParamField path="maxTokens" type="int" required>
+  Maximum number of requests per duration
+</ParamField>
+
+<ParamField path="duration" type="time.Duration" required>
+  Time duration for rate limit window
+</ParamField>
+
+### WithGlobalRateLimitCtx
+
+Sets global rate limit with context support.
+
+```go
+ctx := context.Background()
+nuclei.WithGlobalRateLimitCtx(ctx, 150, time.Second)
+```
+
+## Network options
+
+### WithNetworkConfig
+
+Configures network-related settings.
+
+```go
+nuclei.WithNetworkConfig(nuclei.NetworkConfig{
+	Timeout:               30,
+	Retries:               3,
+	LeaveDefaultPorts:     true,
+	Interface:             "eth0",
+	SourceIP:              "192.168.1.100",
+	SystemResolvers:       false,
+	InternalResolversList: []string{"1.1.1.1", "8.8.8.8"},
+	MaxHostError:          30,
+	DisableMaxHostErr:     false,
+	TrackError:            []string{"timeout", "no-address"},
+})
+```
+
+<ParamField path="Timeout" type="int">
+  Timeout in seconds for requests
+</ParamField>
+
+<ParamField path="Retries" type="int">
+  Number of retries for failed requests
+</ParamField>
+
+<ParamField path="LeaveDefaultPorts" type="bool">
+  Leave default ports (80/443) in URLs
+</ParamField>
+
+<ParamField path="Interface" type="string">
+  Network interface to use for scanning
+</ParamField>
+
+<ParamField path="SourceIP" type="string">
+  Custom source IP address for network requests
+</ParamField>
+
+<ParamField path="SystemResolvers" type="bool">
+  Use system DNS resolvers
+</ParamField>
+
+<ParamField path="InternalResolversList" type="[]string">
+  Custom DNS resolver list
+</ParamField>
+
+<ParamField path="MaxHostError" type="int">
+  Maximum errors before skipping a host
+</ParamField>
+
+<ParamField path="DisableMaxHostErr" type="bool">
+  Disable max host error optimization
+</ParamField>
+
+<ParamField path="TrackError" type="[]string">
+  Error types to track for max host error
+</ParamField>
+
+### WithProxy
+
+Configures proxy settings.
+
+```go
+nuclei.WithProxy(
+	[]string{"http://proxy.example.com:8080"},
+	true, // proxy internal requests
+)
+```
+
+<ParamField path="proxy" type="[]string" required>
+  List of proxy URLs
+</ParamField>
+
+<ParamField path="proxyInternalRequests" type="bool" required>
+  Whether to proxy internal requests
+</ParamField>
+
+### WithResponseReadSize
+
+Sets maximum response size to read.
+
+```go
+nuclei.WithResponseReadSize(10485760) // 10MB
+```
+
+<ParamField path="responseReadSize" type="int" required>
+  Maximum size in bytes (0 = no limit)
+</ParamField>
+
+## Feature flags
+
+### EnableCodeTemplates
+
+Enables loading and executing code protocol templates.
+
+```go
+nuclei.EnableCodeTemplates()
+```
+
+<Warning>
+  Code templates can execute arbitrary code. Only use with trusted templates.
+</Warning>
+
+### EnableSelfContainedTemplates
+
+Enables self-contained templates.
+
+```go
+nuclei.EnableSelfContainedTemplates()
+```
+
+### EnableGlobalMatchersTemplates
+
+Enables global-matchers templates.
+
+```go
+nuclei.EnableGlobalMatchersTemplates()
+```
+
+### EnableFileTemplates
+
+Enables file protocol templates.
+
+```go
+nuclei.EnableFileTemplates()
+```
+
+### EnablePassiveMode
+
+Enables passive HTTP response processing mode.
+
+```go
+nuclei.EnablePassiveMode()
+```
+
+### EnableMatcherStatus
+
+Enables matcher status in results.
+
+```go
+nuclei.EnableMatcherStatus()
+```
+
+### DisableTemplateCache
+
+Disables template caching.
+
+```go
+nuclei.DisableTemplateCache()
+```
+
+### SignedTemplatesOnly
+
+Only load and run signed templates.
+
+```go
+nuclei.SignedTemplatesOnly()
+```
+
+### DASTMode
+
+Only run DAST templates.
+
+```go
+nuclei.DASTMode()
+```
+
+## Headless options
+
+### EnableHeadlessWithOpts
+
+Enables headless browser support with options.
+
+```go
+nuclei.EnableHeadlessWithOpts(&nuclei.HeadlessOpts{
+	PageTimeout: 20,
+	ShowBrowser: false,
+	UseChrome:   false,
+	HeadlessOptions: []string{
+		"--no-sandbox",
+		"--disable-gpu",
+	},
+})
+```
+
+<ParamField path="PageTimeout" type="int">
+  Timeout for page loads in seconds
+</ParamField>
+
+<ParamField path="ShowBrowser" type="bool">
+  Show browser window during execution
+</ParamField>
+
+<ParamField path="UseChrome" type="bool">
+  Use installed Chrome instead of Chromium
+</ParamField>
+
+<ParamField path="HeadlessOptions" type="[]string">
+  Additional browser command-line options
+</ParamField>
+
+## Interactsh options
+
+### WithInteractshOptions
+
+Configures Interactsh for out-of-band testing.
+
+```go
+nuclei.WithInteractshOptions(nuclei.InteractshOpts{
+	ServerURL:      "https://interact.sh",
+	CacheSize:      5000,
+	Eviction:       60,
+	CooldownPeriod: 5,
+	PollDuration:   5,
+})
+```
+
+<ParamField path="ServerURL" type="string">
+  Interactsh server URL
+</ParamField>
+
+<ParamField path="CacheSize" type="int">
+  Cache size for interactions
+</ParamField>
+
+<ParamField path="Eviction" type="int">
+  Cache eviction time in seconds
+</ParamField>
+
+<ParamField path="CooldownPeriod" type="int">
+  Cooldown period in seconds
+</ParamField>
+
+<ParamField path="PollDuration" type="int">
+  Polling duration in seconds
+</ParamField>
+
+## Stats and monitoring
+
+### EnableStatsWithOpts
+
+Enables statistics collection and metrics.
+
+```go
+nuclei.EnableStatsWithOpts(nuclei.StatsOptions{
+	Interval:         5,
+	JSON:             true,
+	MetricServerPort: 6064,
+})
+```
+
+<ParamField path="Interval" type="int">
+  Stats collection interval in seconds (default: 5)
+</ParamField>
+
+<ParamField path="JSON" type="bool">
+  Output stats in JSON format
+</ParamField>
+
+<ParamField path="MetricServerPort" type="int">
+  Port for metrics server (Prometheus format)
+</ParamField>
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`
+</Note>
+
+## Logging and verbosity
+
+### WithVerbosity
+
+Controls logging verbosity.
+
+```go
+nuclei.WithVerbosity(nuclei.VerbosityOptions{
+	Verbose:       true,
+	Silent:        false,
+	Debug:         false,
+	DebugRequest:  false,
+	DebugResponse: false,
+	ShowVarDump:   false,
+})
+```
+
+<ParamField path="Verbose" type="bool">
+  Show verbose output
+</ParamField>
+
+<ParamField path="Silent" type="bool">
+  Show only results
+</ParamField>
+
+<ParamField path="Debug" type="bool">
+  Show debug output
+</ParamField>
+
+<ParamField path="DebugRequest" type="bool">
+  Show requests in debug output
+</ParamField>
+
+<ParamField path="DebugResponse" type="bool">
+  Show responses in debug output
+</ParamField>
+
+<ParamField path="ShowVarDump" type="bool">
+  Show variable dumps in output
+</ParamField>
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`
+</Note>
+
+### WithLogger
+
+Sets a custom logger instance.
+
+```go
+import "github.com/projectdiscovery/gologger"
+
+logger := gologger.NewLogger()
+nuclei.WithLogger(logger)
+```
+
+## Custom handlers
+
+### UseOutputWriter
+
+Sets a custom output writer.
+
+```go
+type CustomWriter struct{}
+
+func (w *CustomWriter) Write(event *output.ResultEvent) error {
+	return nil
+}
+
+func (w *CustomWriter) Close() {}
+
+nuclei.UseOutputWriter(&CustomWriter{})
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`
+</Note>
+
+### UseStatsWriter
+
+Sets a custom stats writer.
+
+```go
+type CustomStatsWriter struct{}
+
+nuclei.UseStatsWriter(&CustomStatsWriter{})
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`
+</Note>
+
+### WithTemplateUpdateCallback
+
+Sets a callback for template updates.
+
+```go
+nuclei.WithTemplateUpdateCallback(
+	false, // don't disable auto-upgrade
+	func(newVersion string) {
+		fmt.Printf("New templates version: %s\n", newVersion)
+	},
+)
+```
+
+<Note>
+  Not supported with `ThreadSafeNucleiEngine`
+</Note>
+
+## Authentication and secrets
+
+### WithAuthProvider
+
+Sets a custom authentication provider.
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/authprovider"
+
+type CustomAuthProvider struct{}
+
+nuclei.WithAuthProvider(&CustomAuthProvider{})
+```
+
+### LoadSecretsFromFile
+
+Loads secrets from files.
+
+```go
+nuclei.LoadSecretsFromFile(
+	[]string{"/path/to/secrets.yaml"},
+	true, // prefetch secrets
+)
+```
+
+### WithHeaders
+
+Sets custom headers for all HTTP requests.
+
+```go
+nuclei.WithHeaders([]string{
+	"X-Custom-Header: value",
+	"Cookie: session=abc123",
+})
+```
+
+### WithVars
+
+Sets custom variables for templates.
+
+```go
+nuclei.WithVars([]string{
+	"api_key=secret123",
+	"username=admin",
+})
+```
+
+## Sandbox options
+
+### WithSandboxOptions
+
+Configures sandbox security options.
+
+```go
+nuclei.WithSandboxOptions(
+	true,  // allow local file access
+	false, // don't restrict local network access
+)
+```
+
+<ParamField path="allowLocalFileAccess" type="bool" required>
+  Allow templates to access local files
+</ParamField>
+
+<ParamField path="restrictLocalNetworkAccess" type="bool" required>
+  Restrict access to local/private networks
+</ParamField>
+
+## Scan strategy
+
+### WithScanStrategy
+
+Sets the scanning strategy.
+
+```go
+nuclei.WithScanStrategy("host-spray") // or "template-spray"
+```
+
+<ParamField path="strategy" type="string" required>
+  Scan strategy: "host-spray" or "template-spray"
+</ParamField>
+
+## Advanced options
+
+### WithCatalog
+
+Uses a custom catalog instance.
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/catalog"
+
+catalog := catalog.New()
+nuclei.WithCatalog(catalog)
+```
+
+### WithOptions
+
+Sets all options at once using types.Options.
+
+```go
+import "github.com/projectdiscovery/nuclei/v3/pkg/types"
+
+opts := types.DefaultOptions()
+opts.TemplateThreads = 50
+nuclei.WithOptions(opts)
+```
+
+### WithResumeFile
+
+Enables scan resumption.
+
+```go
+nuclei.WithResumeFile("/tmp/nuclei-resume.cfg")
+```
+
+### WithTemporaryDirectory
+
+Sets a custom temporary directory.
+
+```go
+nuclei.WithTemporaryDirectory("/custom/tmp/path")
+```
+
+### DisableUpdateCheck
+
+Disables automatic update checks.
+
+```go
+nuclei.DisableUpdateCheck()
+```
+
+## Thread-safe mode restrictions
+
+The following options are **not supported** with `ThreadSafeNucleiEngine`:
+
+- `EnableStatsWithOpts`
+- `WithVerbosity`
+- `UseOutputWriter`
+- `UseStatsWriter`
+- `WithTemplateUpdateCallback`
+- `WithSandboxOptions`
+- `WithProxy`
+
+Additionally, these options can only be set during initialization:
+- `WithInteractshOptions`
+- `WithNetworkConfig`
+
+Attempting to use unsupported options will return `ErrOptionsNotSupported`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Basic usage" icon="play" href="/sdk/basic-usage">
+    Learn how to use these options
+  </Card>
+  <Card title="API reference" icon="code" href="/sdk/api/nuclei-engine">
+    Explore the API documentation
+  </Card>
+</CardGroup>

@@ -1,0 +1,272 @@
+---
+title: Changelog
+description: Release notes and version history for Nuclei
+---
+
+Stay up to date with the latest Nuclei releases, features, and improvements.
+
+## Official changelog
+
+The complete changelog with detailed release notes is maintained on GitHub:
+
+<Card title="View full changelog" icon="github" href="https://github.com/projectdiscovery/nuclei/releases">
+  Access detailed release notes, breaking changes, and upgrade instructions for all Nuclei versions
+</Card>
+
+## Release channels
+
+Nuclei follows semantic versioning and provides multiple release channels:
+
+<CardGroup cols={2}>
+  <Card title="Stable releases" icon="check-circle">
+    Production-ready releases with full testing and documentation
+  </Card>
+  <Card title="Development builds" icon="code-branch">
+    Latest features from the `dev` branch (use with caution)
+  </Card>
+  <Card title="Security patches" icon="shield">
+    Critical security fixes released as needed
+  </Card>
+  <Card title="Template updates" icon="file-code">
+    Continuous template library updates (separate versioning)
+  </Card>
+</CardGroup>
+
+## Checking your version
+
+```bash
+# Check Nuclei version
+nuclei -version
+
+# Check templates version
+nuclei -templates-version
+```
+
+## Updating Nuclei
+
+<Steps>
+  <Step title="Update Nuclei engine">
+    ```bash
+    # Update to latest stable version
+    nuclei -update
+
+    # Or reinstall via Go
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    ```
+  </Step>
+
+  <Step title="Update templates">
+    ```bash
+    # Update to latest templates
+    nuclei -update-templates
+    ```
+  </Step>
+
+  <Step title="Verify updates">
+    ```bash
+    # Check installed versions
+    nuclei -version
+    nuclei -templates-version
+
+    # Run health check
+    nuclei -health-check
+    ```
+  </Step>
+</Steps>
+
+## Recent highlights
+
+<Note>
+For complete details on each release, see the [official changelog](https://github.com/projectdiscovery/nuclei/releases).
+</Note>
+
+### Nuclei v3.x
+
+Major version 3 introduced significant improvements:
+
+<AccordionGroup>
+  <Accordion title="Flow-based execution" icon="diagram-project">
+    - Explicit control over template execution flow
+    - Conditional request execution
+    - Loop support for iterative scanning
+    - Multi-protocol template support
+  </Accordion>
+
+  <Accordion title="Enhanced protocols" icon="network-wired">
+    - JavaScript protocol for custom scripting
+    - Code protocol for advanced automation
+    - Improved network/TCP protocol
+    - WebSocket protocol enhancements
+  </Accordion>
+
+  <Accordion title="DAST capabilities" icon="radar">
+    - Dynamic application security testing mode
+    - Advanced fuzzing capabilities
+    - DAST server mode for live testing
+    - Configurable fuzzing aggression levels
+  </Accordion>
+
+  <Accordion title="Performance improvements" icon="gauge-high">
+    - 30-50% faster scanning
+    - Optimized template clustering
+    - Better connection pooling
+    - Reduced memory footprint
+  </Accordion>
+</AccordionGroup>
+
+### Template library updates
+
+The nuclei-templates repository is continuously updated:
+
+- **9,000+ templates** and growing
+- Daily updates for new CVEs
+- Community contributions merged regularly
+- Template quality improvements
+- Better categorization and tagging
+
+<Card title="Template releases" icon="tags" href="https://github.com/projectdiscovery/nuclei-templates/releases">
+  View nuclei-templates changelog
+</Card>
+
+## Release notifications
+
+Stay informed about new releases:
+
+<CardGroup cols={2}>
+  <Card title="GitHub watch" icon="github" href="https://github.com/projectdiscovery/nuclei">
+    Watch the repository for release notifications
+  </Card>
+  <Card title="Discord announcements" icon="discord" href="https://discord.gg/projectdiscovery">
+    Join Discord for release announcements
+  </Card>
+  <Card title="Twitter/X" icon="twitter" href="https://twitter.com/pdnuclei">
+    Follow @pdnuclei for updates
+  </Card>
+  <Card title="Blog" icon="rss" href="https://blog.projectdiscovery.io">
+    Read detailed release posts
+  </Card>
+</CardGroup>
+
+## Version support policy
+
+<Warning>
+**Important:** This project is in active development. Expect breaking changes with releases.
+
+Always review the release changelog before updating.
+</Warning>
+
+### Support lifecycle
+
+- **Latest stable (v3.x)**: Fully supported with active development
+- **Previous stable (v2.x)**: Security fixes only
+- **Older versions**: No longer supported
+
+**Recommendation:** Always run the latest stable version.
+
+## Breaking changes
+
+Major version updates may include breaking changes. See the [Migration Guide](/resources/migration-guide) for:
+
+- v2 to v3 migration instructions
+- Breaking change details
+- Template compatibility notes
+- Configuration updates
+
+## ProjectDiscovery Cloud updates
+
+For ProjectDiscovery Cloud (Pro/Enterprise) feature updates:
+
+<Card title="Product changelog" icon="sparkles" href="https://feedback.projectdiscovery.io/changelog">
+  View ProjectDiscovery Cloud changelog
+</Card>
+
+## Contributing to releases
+
+Help shape future releases:
+
+<CardGroup cols={2}>
+  <Card title="Feature requests" icon="lightbulb" href="https://github.com/projectdiscovery/nuclei/discussions/categories/ideas">
+    Suggest new features
+  </Card>
+  <Card title="Bug reports" icon="bug" href="https://github.com/projectdiscovery/nuclei/issues">
+    Report issues
+  </Card>
+  <Card title="Pull requests" icon="code-pull-request" href="/resources/contributing">
+    Contribute code
+  </Card>
+  <Card title="Template contributions" icon="file-code" href="https://github.com/projectdiscovery/nuclei-templates">
+    Submit templates
+  </Card>
+</CardGroup>
+
+## Historical releases
+
+For complete version history:
+
+<Steps>
+  <Step title="Nuclei engine releases">
+    [github.com/projectdiscovery/nuclei/releases](https://github.com/projectdiscovery/nuclei/releases)
+  </Step>
+
+  <Step title="Template library releases">
+    [github.com/projectdiscovery/nuclei-templates/releases](https://github.com/projectdiscovery/nuclei-templates/releases)
+  </Step>
+
+  <Step title="Cloud platform updates">
+    [feedback.projectdiscovery.io/changelog](https://feedback.projectdiscovery.io/changelog)
+  </Step>
+</Steps>
+
+## Getting help with updates
+
+If you encounter issues after updating:
+
+<CardGroup cols={2}>
+  <Card title="Migration guide" icon="route" href="/resources/migration-guide">
+    Follow migration instructions
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/resources/troubleshooting">
+    Common update issues
+  </Card>
+  <Card title="GitHub discussions" icon="comments" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Ask the community
+  </Card>
+  <Card title="Discord support" icon="discord" href="https://discord.gg/projectdiscovery">
+    Get real-time help
+  </Card>
+</CardGroup>
+
+## Release signing and verification
+
+<Note>
+All official Nuclei releases are:
+- Signed with GPG keys
+- Include SHA256 checksums
+- Built from verified source code
+- Available through official channels only
+</Note>
+
+**Verify release authenticity:**
+
+```bash
+# Download from official GitHub releases
+# https://github.com/projectdiscovery/nuclei/releases
+
+# Verify checksum (example)
+sha256sum -c nuclei_3.x.x_checksums.txt
+```
+
+## Subscribe to updates
+
+Never miss a release:
+
+1. **Enable auto-update check**: Nuclei checks for updates automatically (can be disabled with `-duc`)
+2. **Watch GitHub repository**: Get email notifications for releases
+3. **Join Discord**: Announcements channel for major releases
+4. **Follow social media**: Twitter/X and LinkedIn for updates
+
+---
+
+<Card title="View all releases" icon="timeline" href="https://github.com/projectdiscovery/nuclei/releases">
+  Browse complete release history on GitHub
+</Card>

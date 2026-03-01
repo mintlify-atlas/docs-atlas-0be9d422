@@ -1,0 +1,769 @@
+---
+title: Headless browser support
+description: Use Nuclei's headless browser engine for testing modern web applications with JavaScript rendering
+---
+
+Nuclei includes a powerful headless browser engine built on top of Chrome/Chromium that enables testing of modern JavaScript-heavy applications. This allows you to interact with dynamic content, execute scripts, and test complex workflows.
+
+## Overview
+
+The headless protocol in Nuclei uses the `rod` library to control a headless browser, providing capabilities for:
+
+- Navigating to URLs and rendering JavaScript
+- Clicking buttons and interacting with elements
+- Filling forms and submitting data
+- Executing custom JavaScript code
+- Taking screenshots
+- Intercepting and modifying requests/responses
+- Waiting for page events and conditions
+
+<Note>
+Headless templates are particularly useful for testing SPAs (Single Page Applications), Progressive Web Apps, and modern JavaScript frameworks like React, Vue, and Angular.
+</Note>
+
+## Basic usage
+
+### Simple navigation
+
+```yaml
+id: headless-basic
+
+info:
+  name: Basic headless navigation
+  author: pdteam
+  severity: info
+  tags: headless
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/"
+      
+      - action: waitload
+    
+    matchers:
+      - type: word
+        words:
+          - "<html>"
+```
+
+### Form interaction
+
+```yaml
+id: login-form-test
+
+info:
+  name: Login form interaction
+  author: pdteam
+  severity: info
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/login"
+      
+      - action: waitload
+      
+      - action: text
+        args:
+          selector: '#username'
+          value: 'admin'
+      
+      - action: text
+        args:
+          selector: '#password'
+          value: 'password123'
+      
+      - action: click
+        args:
+          selector: 'button[type="submit"]'
+      
+      - action: waitload
+    
+    matchers:
+      - type: word
+        words:
+          - "Welcome"
+          - "Dashboard"
+```
+
+## Available actions
+
+### Navigation actions
+
+#### navigate
+
+Navigate to a URL:
+
+```yaml
+- action: navigate
+  args:
+    url: "{{BaseURL}}/page"
+```
+
+### Interaction actions
+
+#### click
+
+Click on an element:
+
+```yaml
+- action: click
+  args:
+    selector: '.button'
+```
+
+#### rightclick
+
+Right-click on an element:
+
+```yaml
+- action: rightclick
+  args:
+    selector: '.menu-item'
+```
+
+#### text
+
+Input text into a field:
+
+```yaml
+- action: text
+  args:
+    selector: 'input[name="username"]'
+    value: 'testuser'
+```
+
+#### keyboard
+
+Simulate keyboard actions:
+
+```yaml
+- action: keyboard
+  args:
+    keys: '\r'  # Press Enter
+```
+
+#### select
+
+Select option from dropdown:
+
+```yaml
+- action: select
+  args:
+    selector: 'select[name="country"]'
+    value: 'USA'
+```
+
+#### files
+
+Upload files (requires `-allow-local-file-access` flag):
+
+```yaml
+- action: files
+  args:
+    selector: 'input[type="file"]'
+    value: '/path/to/file.pdf'
+```
+
+### Wait actions
+
+#### waitload
+
+Wait for the page to fully load:
+
+```yaml
+- action: waitload
+```
+
+#### waitdom
+
+Wait for DOM content to be loaded:
+
+```yaml
+- action: waitdom
+```
+
+#### waitidle
+
+Wait for network to be idle:
+
+```yaml
+- action: waitidle
+```
+
+#### waitstable
+
+Wait for the page to be stable (no more changes):
+
+```yaml
+- action: waitstable
+```
+
+#### waitfcp
+
+Wait for First Contentful Paint:
+
+```yaml
+- action: waitfcp
+```
+
+#### waitfmp
+
+Wait for First Meaningful Paint:
+
+```yaml
+- action: waitfmp
+```
+
+#### waitvisible
+
+Wait for an element to become visible:
+
+```yaml
+- action: waitvisible
+  args:
+    by: selector
+    value: '.success-message'
+```
+
+#### waitevent
+
+Wait for a specific browser event:
+
+```yaml
+- action: waitevent
+  args:
+    event: 'networkIdle'
+```
+
+#### sleep
+
+Simple sleep for a duration:
+
+```yaml
+- action: sleep
+  args:
+    duration: '2s'
+```
+
+### Script actions
+
+#### script
+
+Execute custom JavaScript:
+
+```yaml
+- action: script
+  name: extract
+  args:
+    code: |
+      () => {
+        return document.title;
+      }
+```
+
+### HTTP manipulation actions
+
+#### setheader
+
+Set request header:
+
+```yaml
+- action: setheader
+  args:
+    part: request
+    key: 'Authorization'
+    value: 'Bearer {{token}}'
+```
+
+#### addheader
+
+Add request header:
+
+```yaml
+- action: addheader
+  args:
+    part: request
+    key: 'X-Custom-Header'
+    value: 'custom-value'
+```
+
+#### deleteheader
+
+Delete request header:
+
+```yaml
+- action: deleteheader
+  args:
+    part: request
+    key: 'Referer'
+```
+
+#### setbody
+
+Set request body:
+
+```yaml
+- action: setbody
+  args:
+    part: request
+    value: '{"key": "value"}'
+```
+
+#### setmethod
+
+Set request method:
+
+```yaml
+- action: setmethod
+  args:
+    part: request
+    value: 'POST'
+```
+
+### Extraction actions
+
+#### extract
+
+Extract data from elements:
+
+```yaml
+- action: extract
+  args:
+    by: selector
+    selector: 'div.content'
+    extract: 'text'
+```
+
+#### getresource
+
+Get resource content:
+
+```yaml
+- action: getresource
+  args:
+    url: '{{BaseURL}}/api/data'
+```
+
+#### screenshot
+
+Take a screenshot:
+
+```yaml
+- action: screenshot
+  args:
+    to: 'screenshot.png'
+```
+
+## Advanced examples
+
+### JavaScript extraction
+
+```yaml
+id: extract-urls-headless
+
+info:
+  name: Extract URLs using JavaScript
+  author: pdteam
+  severity: info
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}"
+      
+      - action: waitload
+      
+      - action: script
+        name: extract
+        args:
+          code: |
+            () => {
+              return '\n' + [...new Set(Array.from(document.querySelectorAll('[src], [href], [url], [action]')).map(i => i.src || i.href || i.url || i.action))].join('\r\n') + '\n'
+            }
+    
+    matchers:
+      - type: regex
+        part: extract
+        regex:
+          - "https?://[^\s]+"
+    
+    extractors:
+      - type: kval
+        part: extract
+        kval:
+          - extract
+```
+
+### Cookie manipulation
+
+```yaml
+id: headless-cookie-test
+
+info:
+  name: Test with cookie manipulation
+  author: pdteam
+  severity: info
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/login"
+      
+      - action: script
+        args:
+          code: |
+            () => {
+              document.cookie = "admin=true; path=/";
+              document.cookie = "role=administrator; path=/";
+            }
+      
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/admin"
+      
+      - action: waitload
+    
+    matchers:
+      - type: word
+        words:
+          - "Admin Panel"
+```
+
+### File upload test
+
+```yaml
+id: file-upload-test
+
+info:
+  name: File upload testing
+  author: pdteam
+  severity: info
+  tags: headless,upload
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/upload"
+      
+      - action: waitload
+      
+      - action: files
+        args:
+          selector: 'input[type="file"]'
+          value: '/tmp/test.txt'
+      
+      - action: click
+        args:
+          selector: 'button[type="submit"]'
+      
+      - action: waitload
+    
+    matchers:
+      - type: word
+        words:
+          - "Upload successful"
+```
+
+### Multi-step workflow
+
+```yaml
+id: multi-step-workflow
+
+info:
+  name: Complex multi-step workflow
+  author: pdteam
+  severity: medium
+
+headless:
+  - steps:
+      # Step 1: Login
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/login"
+      
+      - action: text
+        args:
+          selector: '#username'
+          value: 'user@example.com'
+      
+      - action: text
+        args:
+          selector: '#password'
+          value: 'password'
+      
+      - action: click
+        args:
+          selector: 'button[type="submit"]'
+      
+      - action: waitload
+      
+      # Step 2: Navigate to settings
+      - action: click
+        args:
+          selector: 'a[href="/settings"]'
+      
+      - action: waitload
+      
+      # Step 3: Modify settings
+      - action: click
+        args:
+          selector: '#enable-feature'
+      
+      - action: click
+        args:
+          selector: 'button.save'
+      
+      - action: waitvisible
+        args:
+          by: selector
+          value: '.success-message'
+    
+    matchers:
+      - type: word
+        words:
+          - "Settings saved successfully"
+```
+
+### Header modification
+
+```yaml
+id: headless-header-test
+
+info:
+  name: Request header modification
+  author: pdteam
+  severity: info
+
+headless:
+  - steps:
+      - action: setheader
+        args:
+          part: request
+          key: 'X-Forwarded-For'
+          value: '127.0.0.1'
+      
+      - action: addheader
+        args:
+          part: request
+          key: 'X-Custom-Header'
+          value: 'test-value'
+      
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/"
+      
+      - action: waitload
+    
+    matchers:
+      - type: word
+        words:
+          - "test-value"
+```
+
+## Fuzzing with headless
+
+Combine fuzzing with headless for dynamic testing:
+
+```yaml
+id: headless-xss-fuzzing
+
+info:
+  name: XSS testing with headless fuzzing
+  author: pdteam
+  severity: high
+
+headless:
+  - steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/search"
+    
+    fuzzing:
+      - part: query
+        type: replace
+        mode: single
+        keys:
+          - q
+        fuzz:
+          - "<script>alert(1)</script>"
+          - "<img src=x onerror=alert(1)>"
+    
+    matchers:
+      - type: word
+        words:
+          - "<script>alert(1)</script>"
+```
+
+## Configuration options
+
+### Page timeout
+
+Set page timeout (default: 30 seconds):
+
+```bash
+nuclei -t headless.yaml -u https://example.com -page-timeout 60
+```
+
+### Show browser
+
+Show browser GUI for debugging:
+
+```bash
+nuclei -t headless.yaml -u https://example.com -headless-show-browser
+```
+
+### Browser arguments
+
+Pass custom Chrome arguments:
+
+```bash
+nuclei -t headless.yaml -u https://example.com -headless-browser-args '--disable-gpu,--no-sandbox'
+```
+
+### User agent
+
+Set custom user agent:
+
+```bash
+nuclei -t headless.yaml -u https://example.com -H 'User-Agent: Custom/1.0'
+```
+
+### Cookie reuse
+
+Reuse cookies across requests:
+
+```yaml
+headless:
+  - cookie-reuse: true
+    steps:
+      - action: navigate
+        args:
+          url: "{{BaseURL}}/login"
+```
+
+## Best practices
+
+<Steps>
+
+### Use appropriate wait actions
+
+Always use wait actions after navigation or interactions:
+
+```yaml
+- action: navigate
+  args:
+    url: "{{BaseURL}}"
+
+- action: waitload  # Wait for page to load
+```
+
+### Handle dynamic content
+
+Use `waitvisible` for dynamically loaded elements:
+
+```yaml
+- action: waitvisible
+  args:
+    by: selector
+    value: '.dynamic-content'
+```
+
+### Optimize performance
+
+Use specific wait conditions instead of sleep:
+
+```yaml
+# Bad
+- action: sleep
+  args:
+    duration: '5s'
+
+# Good
+- action: waitvisible
+  args:
+    by: selector
+    value: '.element'
+```
+
+### Debug effectively
+
+Use screenshots and show-browser for debugging:
+
+```bash
+nuclei -t template.yaml -u target.com -headless-show-browser -debug
+```
+
+</Steps>
+
+<Warning>
+Headless browser testing is resource-intensive. Use appropriate concurrency settings and timeouts to avoid performance issues.
+</Warning>
+
+## Selectors
+
+Nuclei supports multiple selector types:
+
+- **CSS Selectors**: `div.class`, `#id`, `[attribute]`
+- **XPath**: `//div[@class='content']`
+- **Regex**: Pattern matching
+
+```yaml
+# CSS Selector
+- action: click
+  args:
+    by: selector
+    selector: 'button.submit'
+
+# XPath
+- action: click
+  args:
+    by: xpath
+    value: '//button[@type="submit"]'
+```
+
+## Troubleshooting
+
+### Browser not launching
+
+Ensure Chrome/Chromium is installed:
+
+```bash
+# Ubuntu/Debian
+apt-get install chromium-browser
+
+# macOS
+brew install chromium
+```
+
+### Element not found
+
+Increase wait time or use `waitvisible`:
+
+```yaml
+- action: waitvisible
+  args:
+    by: selector
+    value: '.element'
+    timeout: 10
+```
+
+### Memory issues
+
+Reduce concurrency and use proper cleanup:
+
+```bash
+nuclei -t headless.yaml -u targets.txt -c 10
+```
+
+## Related documentation
+
+- [HTTP Protocol](/templates/protocols/http)
+- [Matchers](/templates/reference/matchers)
+- [Fuzzing](/advanced/fuzzing-dast)

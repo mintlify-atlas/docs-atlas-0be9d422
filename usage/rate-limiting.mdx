@@ -1,0 +1,758 @@
+---
+title: Rate limiting
+description: Master rate limiting and performance tuning to control scan speed and optimize Nuclei for different scenarios
+---
+
+## Overview
+
+Rate limiting controls how fast Nuclei sends requests and executes templates. Proper configuration prevents overwhelming targets while maximizing scan efficiency.
+
+## Rate limit fundamentals
+
+### Requests per second
+
+Control the maximum number of requests sent per second:
+
+```bash
+# Default: 150 requests per second
+nuclei -target https://example.com -rate-limit 150
+
+# Conservative: 50 requests per second
+nuclei -target https://example.com -rate-limit 50
+
+# Aggressive: 300 requests per second
+nuclei -target https://example.com -rate-limit 300
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -rl 100
+```
+
+<Info>
+  Default rate limit is 150 requests per second, which is suitable for most scenarios.
+</Info>
+
+### Rate limit duration
+
+Specify the duration window for rate limiting:
+
+```bash
+# 100 requests per second (default)
+nuclei -target https://example.com -rate-limit 100 -rate-limit-duration 1s
+
+# 500 requests per 5 seconds
+nuclei -target https://example.com -rate-limit 500 -rate-limit-duration 5s
+
+# 1000 requests per minute
+nuclei -target https://example.com -rate-limit 1000 -rate-limit-duration 60s
+```
+
+Short flags:
+```bash
+nuclei -u https://example.com -rl 100 -rld 1s
+```
+
+<Note>
+  Rate limit duration defaults to 1 second. Adjust this to match your target's rate limiting windows.
+</Note>
+
+## Concurrency controls
+
+### Bulk size
+
+Control how many hosts are processed in parallel per template:
+
+```bash
+# Default: 25 hosts
+nuclei -list targets.txt -bulk-size 25
+
+# Conservative: 10 hosts
+nuclei -list targets.txt -bulk-size 10
+
+# Aggressive: 50 hosts
+nuclei -list targets.txt -bulk-size 50
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -bs 25
+```
+
+<Tip>
+  Increase bulk size when scanning many targets with few templates. Decrease for few targets with many templates.
+</Tip>
+
+### Template concurrency
+
+Control how many templates execute simultaneously:
+
+```bash
+# Default: 25 templates
+nuclei -target https://example.com -concurrency 25
+
+# Conservative: 10 templates
+nuclei -target https://example.com -concurrency 10
+
+# Aggressive: 50 templates
+nuclei -target https://example.com -concurrency 50
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -c 25
+```
+
+### Headless concurrency
+
+Control headless browser template execution:
+
+```bash
+# Headless bulk size (default: 10)
+nuclei -target https://example.com -headless -headless-bulk-size 10
+
+# Headless template threads (default: 10)
+nuclei -target https://example.com -headless -headless-concurrency 10
+```
+
+Short flags:
+```bash
+nuclei -u https://example.com -headless -hbs 10 -headc 10
+```
+
+<Warning>
+  Headless templates consume more resources. Keep concurrency lower than standard HTTP templates.
+</Warning>
+
+### JavaScript concurrency
+
+Control JavaScript runtime concurrency:
+
+```bash
+# Default: 120 concurrent JS runtimes
+nuclei -target https://example.com -js-concurrency 120
+
+# Conservative: 60
+nuclei -target https://example.com -js-concurrency 60
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -jsc 120
+```
+
+### Payload concurrency
+
+Control payload execution per template:
+
+```bash
+# Default: 25 payloads
+nuclei -target https://example.com -payload-concurrency 25
+
+# Conservative: 10
+nuclei -target https://example.com -payload-concurrency 10
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -pc 25
+```
+
+### Probe concurrency
+
+Control HTTP probing concurrency with httpx:
+
+```bash
+# Default: 50 probes
+nuclei -list ips.txt -probe-concurrency 50
+
+# Aggressive: 100 probes
+nuclei -list ips.txt -probe-concurrency 100
+```
+
+Short flag:
+```bash
+nuclei -list ips.txt -prc 50
+```
+
+### Template loading concurrency
+
+Control how many templates load in parallel:
+
+```bash
+# Default: 50 concurrent loads
+nuclei -target https://example.com -template-loading-concurrency 50
+
+# Conservative: 25
+nuclei -target https://example.com -template-loading-concurrency 25
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -tlc 50
+```
+
+## Timeout controls
+
+### Request timeout
+
+Set timeout for individual requests:
+
+```bash
+# Default: 10 seconds
+nuclei -target https://example.com -timeout 10
+
+# Slow targets: 30 seconds
+nuclei -target https://slow-site.com -timeout 30
+
+# Fast timeout: 5 seconds
+nuclei -target https://example.com -timeout 5
+```
+
+<Info>
+  Timeout applies to:
+  - HTTP requests
+  - Network connections
+  - DNS queries
+  - Other protocol operations
+</Info>
+
+### Page timeout
+
+Set timeout for headless browser pages:
+
+```bash
+# Default: 20 seconds
+nuclei -target https://example.com -headless -page-timeout 20
+
+# Slow JavaScript apps: 60 seconds
+nuclei -target https://spa-app.com -headless -page-timeout 60
+```
+
+### Dialer keep-alive
+
+Set keep-alive duration for network connections:
+
+```bash
+# Default: system default
+nuclei -target https://example.com -dialer-keep-alive 30s
+
+# Long connections
+nuclei -target https://example.com -dialer-keep-alive 60s
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -dka 30s
+```
+
+## Retry controls
+
+### Number of retries
+
+Set how many times to retry failed requests:
+
+```bash
+# Default: 1 retry
+nuclei -target https://example.com -retries 1
+
+# No retries
+nuclei -target https://example.com -retries 0
+
+# Multiple retries
+nuclei -target https://unstable-site.com -retries 3
+```
+
+<Tip>
+  Increase retries for unstable networks or intermittent targets. Decrease for faster scans.
+</Tip>
+
+## Error handling
+
+### Max host errors
+
+Skip hosts after a certain number of errors:
+
+```bash
+# Default: 30 errors
+nuclei -list targets.txt -max-host-error 30
+
+# Strict: 10 errors
+nuclei -list targets.txt -max-host-error 10
+
+# Lenient: 100 errors
+nuclei -list targets.txt -max-host-error 100
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -mhe 30
+```
+
+### Track additional errors
+
+Add custom error types to the error count:
+
+```bash
+nuclei -list targets.txt -track-error "connection refused,timeout"
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -te "connection refused"
+```
+
+### Disable host error tracking
+
+Disable automatic host skipping:
+
+```bash
+nuclei -list targets.txt -no-mhe
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -nmhe
+```
+
+<Warning>
+  Disabling host error tracking can lead to wasted time on unreachable targets.
+</Warning>
+
+## Performance profiles
+
+### Conservative profile (production-safe)
+
+Safe settings for production environments:
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 50 \
+  -concurrency 10 \
+  -bulk-size 10 \
+  -timeout 15 \
+  -retries 2
+```
+
+**Use when:**
+- Scanning production systems
+- Network bandwidth is limited
+- Target stability is unknown
+- Running during business hours
+
+### Balanced profile (default)
+
+Optimal balance between speed and safety:
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 150 \
+  -concurrency 25 \
+  -bulk-size 25 \
+  -timeout 10 \
+  -retries 1
+```
+
+**Use when:**
+- General purpose scanning
+- Mixed target environments
+- Standard security assessments
+
+### Aggressive profile (fast scanning)
+
+Maximize scan speed:
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 500 \
+  -concurrency 100 \
+  -bulk-size 50 \
+  -timeout 5 \
+  -retries 0 \
+  -max-host-error 10
+```
+
+**Use when:**
+- Scanning test environments
+- Time-sensitive assessments
+- Robust targets with good connectivity
+- Bug bounty hunting
+
+<Warning>
+  Aggressive settings may trigger rate limiting or WAF blocks on some targets.
+</Warning>
+
+### Resource-constrained profile
+
+Minimize resource usage:
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 25 \
+  -concurrency 5 \
+  -bulk-size 5 \
+  -timeout 30 \
+  -headless-concurrency 2 \
+  -js-concurrency 30
+```
+
+**Use when:**
+- Running on low-end hardware
+- Limited memory available
+- High network latency
+- Scanning from VPS with constraints
+
+## Scan strategy optimization
+
+Combine rate limiting with scan strategies:
+
+```bash
+# Host spray: all templates against each host
+nuclei -list targets.txt \
+  -scan-strategy host-spray \
+  -rate-limit 200 \
+  -bulk-size 50
+
+# Template spray: each template against all hosts
+nuclei -list targets.txt \
+  -scan-strategy template-spray \
+  -rate-limit 200 \
+  -concurrency 50
+```
+
+Short flag:
+```bash
+nuclei -list targets.txt -ss host-spray -rl 200 -bs 50
+```
+
+## Response size limits
+
+### Read size
+
+Limit how much response data to read:
+
+```bash
+# Default: 10 MB
+nuclei -target https://example.com -response-size-read 10485760
+
+# Conservative: 5 MB
+nuclei -target https://example.com -response-size-read 5242880
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -rsr 10485760
+```
+
+### Save size
+
+Limit response size when storing:
+
+```bash
+# Default: 1 MB
+nuclei -target https://example.com -response-size-save 1048576
+
+# Larger responses: 5 MB
+nuclei -target https://example.com -response-size-save 5242880
+```
+
+Short flag:
+```bash
+nuclei -u https://example.com -rss 1048576
+```
+
+## Practical examples
+
+### Example 1: Production web app scan
+
+```bash
+nuclei -target https://production-app.com \
+  -rate-limit 50 \
+  -concurrency 10 \
+  -bulk-size 10 \
+  -timeout 15 \
+  -retries 2 \
+  -severity high,critical \
+  -exclude-tags dos,intrusive
+```
+
+### Example 2: Internal network scan
+
+```bash
+nuclei -target 192.168.1.0/24 \
+  -rate-limit 200 \
+  -concurrency 50 \
+  -bulk-size 50 \
+  -timeout 5 \
+  -probe-concurrency 100
+```
+
+### Example 3: Slow/unstable target
+
+```bash
+nuclei -target https://slow-site.com \
+  -rate-limit 10 \
+  -concurrency 5 \
+  -timeout 60 \
+  -retries 5 \
+  -max-host-error 100
+```
+
+### Example 4: Fast bug bounty scan
+
+```bash
+nuclei -list bounty-targets.txt \
+  -rate-limit 500 \
+  -concurrency 100 \
+  -bulk-size 100 \
+  -timeout 5 \
+  -retries 0 \
+  -severity critical,high \
+  -silent
+```
+
+### Example 5: Headless scanning
+
+```bash
+nuclei -target https://spa-app.com \
+  -headless \
+  -rate-limit 50 \
+  -headless-concurrency 5 \
+  -headless-bulk-size 5 \
+  -page-timeout 30 \
+  -timeout 20
+```
+
+### Example 6: Large scale CI/CD
+
+```bash
+nuclei -list 10000-targets.txt \
+  -rate-limit 300 \
+  -concurrency 75 \
+  -bulk-size 75 \
+  -timeout 10 \
+  -max-host-error 20 \
+  -retries 1 \
+  -template-loading-concurrency 100 \
+  -silent \
+  -no-color
+```
+
+## Monitoring performance
+
+### Enable statistics
+
+Monitor scan performance in real-time:
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 200 \
+  -stats \
+  -stats-interval 10
+```
+
+Output:
+```
+Templates: 3500 | Hosts: 100 | RPS: 198 | Errors: 12 | Matches: 45
+```
+
+### Enable metrics endpoint
+
+Expose Prometheus metrics:
+
+```bash
+nuclei -list targets.txt \
+  -metrics-port 9092
+```
+
+Access at `http://localhost:9092/metrics`.
+
+## Optimization tips
+
+<Steps>
+  <Step title="Start conservative">
+    Begin with lower values and increase gradually:
+    ```bash
+    nuclei -u example.com -rl 50 -c 10
+    ```
+  </Step>
+  
+  <Step title="Monitor for errors">
+    Watch for connection errors and timeouts:
+    ```bash
+    nuclei -list targets.txt -stats -error-log errors.log
+    ```
+  </Step>
+  
+  <Step title="Adjust based on target">
+    Different targets need different settings:
+    - **CDN-protected**: Lower rate limits
+    - **Internal apps**: Higher concurrency
+    - **APIs**: Balance rate limit with endpoint limits
+  </Step>
+  
+  <Step title="Consider network conditions">
+    - **High latency**: Increase timeout
+    - **Low bandwidth**: Decrease concurrency
+    - **Unstable**: Increase retries
+  </Step>
+  
+  <Step title="Match scan strategy">
+    - **Many targets, few templates**: Increase bulk size
+    - **Few targets, many templates**: Increase concurrency
+    - **Mixed**: Use auto strategy
+  </Step>
+</Steps>
+
+## Tuning for specific scenarios
+
+### API testing
+
+```bash
+nuclei -target https://api.example.com \
+  -rate-limit 100 \
+  -concurrency 20 \
+  -timeout 15 \
+  -tags api
+```
+
+### Cloud environments (AWS, GCP, Azure)
+
+```bash
+nuclei -list cloud-assets.txt \
+  -rate-limit 200 \
+  -concurrency 50 \
+  -bulk-size 50 \
+  -timeout 10 \
+  -probe-concurrency 100
+```
+
+### WAF-protected targets
+
+```bash
+nuclei -target https://waf-protected.com \
+  -rate-limit 20 \
+  -concurrency 5 \
+  -timeout 20 \
+  -retries 3 \
+  -random-agent
+```
+
+### VPN/Tor scanning
+
+```bash
+nuclei -list targets.txt \
+  -rate-limit 25 \
+  -concurrency 5 \
+  -timeout 60 \
+  -retries 5 \
+  -proxy socks5://127.0.0.1:9050
+```
+
+## Common issues and solutions
+
+### Too many connection errors
+
+**Symptom**: High error rate, hosts getting skipped
+
+**Solution**:
+```bash
+nuclei -list targets.txt \
+  -rate-limit 50 \
+  -concurrency 10 \
+  -retries 3 \
+  -max-host-error 50
+```
+
+### Scan too slow
+
+**Symptom**: Low RPS, templates taking too long
+
+**Solution**:
+```bash
+nuclei -list targets.txt \
+  -rate-limit 300 \
+  -concurrency 50 \
+  -bulk-size 50 \
+  -timeout 8 \
+  -exclude-type headless
+```
+
+### Memory issues
+
+**Symptom**: High memory usage, OOM errors
+
+**Solution**:
+```bash
+nuclei -list targets.txt \
+  -rate-limit 100 \
+  -concurrency 10 \
+  -headless-concurrency 2 \
+  -js-concurrency 30 \
+  -template-loading-concurrency 25
+```
+
+### Getting rate limited
+
+**Symptom**: 429 errors, WAF blocks
+
+**Solution**:
+```bash
+nuclei -target example.com \
+  -rate-limit 10 \
+  -rate-limit-duration 60s \
+  -concurrency 5 \
+  -random-agent \
+  -header "X-Custom: value"
+```
+
+## Best practices
+
+<Note>
+  **Test before large scans**: Run a small test first to verify settings.
+</Note>
+
+<Tip>
+  **Use statistics**: Always enable stats for long-running scans to monitor performance.
+</Tip>
+
+<Warning>
+  **Respect rate limits**: Honor target rate limits and terms of service.
+</Warning>
+
+<Info>
+  **Document your settings**: Save optimized configurations for different target types.
+</Info>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Running scans"
+    icon="play"
+    href="/usage/running-scans"
+  >
+    Learn different scanning modes and strategies
+  </Card>
+  <Card
+    title="Output options"
+    icon="file-export"
+    href="/usage/output-options"
+  >
+    Export and format scan results
+  </Card>
+  <Card
+    title="Target specification"
+    icon="bullseye"
+    href="/usage/target-specification"
+  >
+    Advanced target configuration
+  </Card>
+  <Card
+    title="Filtering templates"
+    icon="funnel"
+    href="/usage/filtering-templates"
+  >
+    Filter templates for optimal scanning
+  </Card>
+</CardGroup>

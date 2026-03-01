@@ -1,0 +1,175 @@
+---
+title: Template library
+description: Explore the official Nuclei templates library with thousands of community-contributed templates
+---
+
+The Nuclei Templates library is a community-driven collection of vulnerability detection templates that power Nuclei's scanning capabilities. With thousands of templates covering CVEs, misconfigurations, and security issues, it's the largest open-source vulnerability database.
+
+## Official template repository
+
+The official Nuclei templates are hosted on GitHub and maintained by ProjectDiscovery and the community.
+
+<CardGroup cols={2}>
+  <Card title="nuclei-templates" icon="shield" href="https://github.com/projectdiscovery/nuclei-templates">
+    Official templates repository with 9,000+ templates
+  </Card>
+  <Card title="Cloud template editor" icon="cloud" href="https://cloud.projectdiscovery.io/templates">
+    Free AI-powered template editor to create and test templates
+  </Card>
+</CardGroup>
+
+## Template categories
+
+Templates are organized into the following main categories:
+
+<AccordionGroup>
+  <Accordion title="CVEs" icon="bug">
+    Templates for detecting known Common Vulnerabilities and Exposures (CVEs). These templates are updated regularly as new CVEs are disclosed.
+
+    Examples:
+    - CVE-2021-44228 (Log4Shell)
+    - CVE-2024-22120 (Blind SQL Injection)
+    - CVE-2023-4173 (Reflected XSS)
+  </Accordion>
+
+  <Accordion title="Exposures" icon="eye">
+    Templates for detecting sensitive file disclosures, data leaks, and exposed endpoints.
+
+    Examples:
+    - `.git/config` exposure
+    - `bower.json` file disclosure
+    - Configuration file leaks
+    - Backup file exposure
+  </Accordion>
+
+  <Accordion title="Misconfigurations" icon="gear">
+    Templates for identifying security misconfigurations in web applications, servers, and cloud services.
+
+    Examples:
+    - Unprotected Jenkins console
+    - Open S3 buckets
+    - Default credentials
+    - Misconfigured CORS policies
+  </Accordion>
+
+  <Accordion title="Technologies" icon="server">
+    Templates organized by technology stack (WordPress, Joomla, Jenkins, etc.).
+  </Accordion>
+
+  <Accordion title="Vulnerabilities" icon="shield-halved">
+    General vulnerability templates including SQL injection, XSS, RCE, and more.
+  </Accordion>
+</AccordionGroup>
+
+## Using templates
+
+### Install and update templates
+
+Nuclei automatically downloads templates on first run. To update to the latest templates:
+
+```bash
+nuclei -update-templates
+```
+
+### Run specific template categories
+
+```bash
+# Run all CVE templates
+nuclei -u https://example.com -t cves/
+
+# Run specific CVE template
+nuclei -u https://example.com -t cves/2021/CVE-2021-44228.yaml
+
+# Run multiple categories
+nuclei -u https://example.com -t http/cves/ -t ssl
+```
+
+### Filter by severity
+
+```bash
+# Run only critical and high severity templates
+nuclei -u https://example.com -s critical,high
+
+# Exclude info severity
+nuclei -u https://example.com -es info
+```
+
+### Filter by tags
+
+```bash
+# Run templates with specific tags
+nuclei -u https://example.com -tags cve,rce
+
+# Exclude templates with specific tags
+nuclei -u https://example.com -etags dos
+```
+
+## Template structure
+
+All Nuclei templates follow a standard YAML structure:
+
+```yaml
+id: CVE-2021-44228
+
+info:
+  name: Apache Log4j2 Remote Code Execution
+  author: pdteam
+  severity: critical
+  description: Apache Log4j2 is vulnerable to RCE via JNDI injection
+  reference:
+    - https://logging.apache.org/log4j/2.x/security.html
+  classification:
+    cve-id: CVE-2021-44228
+    cwe-id: CWE-502
+  tags: cve,cve2021,rce,log4j
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    headers:
+      X-Api-Version: "${jndi:ldap://{{interactsh-url}}}"
+    
+    matchers:
+      - type: word
+        part: interactsh_protocol
+        words:
+          - "dns"
+```
+
+## Contributing templates
+
+<Note>
+ProjectDiscovery runs two programs for template contributors: [Pioneers](https://projectdiscovery.io/pioneers) (recognition program) and [Bounties](https://github.com/projectdiscovery/nuclei-templates/issues?q=is%3Aissue+state%3Aopen+label%3A%22%F0%9F%92%8E+Bounty%22) (monetary rewards).
+</Note>
+
+See the [Contributing guide](/resources/contributing) for details on how to contribute templates to the official library.
+
+## Template validation
+
+Before submitting templates, validate them using the built-in validator:
+
+```bash
+# Validate a specific template
+nuclei -validate -t path/to/template.yaml
+
+# Validate all templates in a directory
+nuclei -validate -t templates/
+```
+
+## Community resources
+
+<CardGroup cols={2}>
+  <Card title="Template editor" icon="code" href="https://cloud.projectdiscovery.io/templates">
+    AI-powered online editor for creating templates
+  </Card>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Join the community for help and discussions
+  </Card>
+  <Card title="Template syntax" icon="book" href="/templates/introduction">
+    Learn the template syntax and structure
+  </Card>
+  <Card title="Submit bounty templates" icon="gem" href="https://github.com/projectdiscovery/nuclei-templates/issues?q=is%3Aissue+state%3Aopen+label%3A%22%F0%9F%92%8E+Bounty%22">
+    Earn rewards for high-quality templates
+  </Card>
+</CardGroup>

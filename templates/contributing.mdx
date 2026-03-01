@@ -1,0 +1,641 @@
+---
+title: Contributing templates
+description: Guidelines for contributing Nuclei templates to the community
+---
+
+Contributing templates to the Nuclei project helps the security community detect vulnerabilities across all environments. This guide covers the process for submitting high-quality templates.
+
+## Before you contribute
+
+<Steps>
+  <Step title="Check existing templates">
+    Search the [nuclei-templates repository](https://github.com/projectdiscovery/nuclei-templates) to avoid duplicates:
+    
+    ```bash
+    # Clone the repository
+    git clone https://github.com/projectdiscovery/nuclei-templates.git
+    
+    # Search for similar templates
+    grep -r "your-vulnerability-name" nuclei-templates/
+    ```
+  </Step>
+  
+  <Step title="Verify detection accuracy">
+    Test your template against:
+    - Known vulnerable targets (true positives)
+    - Safe targets (no false positives)
+    - Edge cases (redirects, errors, etc.)
+  </Step>
+  
+  <Step title="Review contribution guidelines">
+    Read the project's [CONTRIBUTING.md](https://github.com/projectdiscovery/nuclei/blob/main/CONTRIBUTING.md):
+    
+    ```bash
+    # View contributing guidelines
+    curl https://raw.githubusercontent.com/projectdiscovery/nuclei/main/CONTRIBUTING.md
+    ```
+  </Step>
+</Steps>
+
+## Contribution requirements
+
+### Mandatory elements
+
+All contributed templates must include:
+
+<Tabs>
+  <Tab title="Template metadata">
+    Complete `info` section with all required fields:
+    
+    ```yaml
+    id: descriptive-template-id
+    
+    info:
+      name: Clear Descriptive Name
+      author: your-github-username
+      severity: medium  # appropriate severity level
+      description: |
+        Detailed description of what the template detects,
+        why it matters, and what constitutes a match.
+      tags: technology,vulnerability-type,category
+    ```
+  </Tab>
+  
+  <Tab title="References">
+    Include relevant references:
+    
+    ```yaml
+    info:
+      reference:
+        - https://nvd.nist.gov/vuln/detail/CVE-XXXX-XXXXX
+        - https://vendor.com/security-advisory
+        - https://github.com/project/security/advisories/GHSA-xxxx
+    ```
+  </Tab>
+  
+  <Tab title="Classification">
+    Add security classification when applicable:
+    
+    ```yaml
+    info:
+      classification:
+        cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+        cvss-score: 9.8
+        cwe-id: CWE-89
+        cve-id: CVE-2021-12345
+    ```
+  </Tab>
+  
+  <Tab title="Metadata">
+    Document resource usage:
+    
+    ```yaml
+    info:
+      metadata:
+        max-request: 2
+        verified: true  # If you've verified against real targets
+    ```
+  </Tab>
+</Tabs>
+
+### Quality standards
+
+<Check>
+  ✓ Template validates successfully (`nuclei -validate -t template.yaml`)
+  
+  ✓ Follows [best practices](/templates/best-practices) for accuracy
+  
+  ✓ Uses multiple matchers to reduce false positives
+  
+  ✓ Includes negative matchers for common error patterns
+  
+  ✓ Has descriptive template ID and name
+  
+  ✓ Contains comprehensive description
+  
+  ✓ Uses appropriate severity level
+  
+  ✓ Minimizes number of requests (documented in `max-request`)
+  
+  ✓ Includes relevant tags for categorization
+  
+  ✓ Has been tested against real targets
+</Check>
+
+## Contribution workflow
+
+### 1. Fork and clone
+
+<Steps>
+  <Step title="Fork repository">
+    Fork the nuclei-templates repository on GitHub
+  </Step>
+  
+  <Step title="Clone your fork">
+    ```bash
+    git clone https://github.com/YOUR-USERNAME/nuclei-templates.git
+    cd nuclei-templates
+    ```
+  </Step>
+  
+  <Step title="Add upstream remote">
+    ```bash
+    git remote add upstream https://github.com/projectdiscovery/nuclei-templates.git
+    ```
+  </Step>
+</Steps>
+
+### 2. Create a branch
+
+As noted in `CONTRIBUTING.md`, always work from the `main` branch:
+
+```bash
+# Update main branch
+git checkout main
+git pull upstream main
+
+# Create feature branch
+git checkout -b add-new-template
+```
+
+<Note>
+  For Nuclei core contributions (not templates), use the `dev` branch as the base.
+</Note>
+
+### 3. Add your template
+
+Place templates in the appropriate directory:
+
+```bash
+nuclei-templates/
+├── cves/
+│   ├── 2021/
+│   │   └── CVE-2021-12345.yaml
+├── vulnerabilities/
+│   ├── vendor/
+│   │   └── product-vulnerability.yaml
+├── exposures/
+│   └── configs/
+│       └── git-config-exposure.yaml
+├── misconfiguration/
+├── exposed-panels/
+└── takeovers/
+```
+
+<Tabs>
+  <Tab title="CVE templates">
+    Place in `cves/YEAR/CVE-YEAR-NUMBER.yaml`:
+    
+    ```bash
+    # For CVE-2021-44228
+    nuclei-templates/cves/2021/CVE-2021-44228.yaml
+    ```
+  </Tab>
+  
+  <Tab title="Generic vulnerabilities">
+    Place in `vulnerabilities/vendor/`:
+    
+    ```bash
+    nuclei-templates/vulnerabilities/wordpress/wordpress-sqli.yaml
+    ```
+  </Tab>
+  
+  <Tab title="Exposures">
+    Place in appropriate `exposures/` subdirectory:
+    
+    ```bash
+    nuclei-templates/exposures/configs/exposed-database.yaml
+    ```
+  </Tab>
+  
+  <Tab title="Misconfigurations">
+    Place in `misconfiguration/`:
+    
+    ```bash
+    nuclei-templates/misconfiguration/cors-misconfiguration.yaml
+    ```
+  </Tab>
+</Tabs>
+
+### 4. Validate template
+
+Before committing, validate your template:
+
+```bash
+# Validate syntax
+nuclei -validate -t path/to/your-template.yaml
+
+# Test against target
+nuclei -t path/to/your-template.yaml -u https://test-target.com
+
+# Run with debug for detailed output
+nuclei -t path/to/your-template.yaml -u https://test-target.com -debug
+```
+
+<Warning>
+  Ensure your template produces no false positives by testing against safe targets.
+</Warning>
+
+### 5. Commit changes
+
+Follow good commit message practices:
+
+```bash
+# Add template
+git add path/to/your-template.yaml
+
+# Commit with descriptive message
+git commit -m "Add template for CVE-2021-12345 detection
+
+Detects SQL injection vulnerability in Product XYZ versions < 2.0.
+Tested against vulnerable lab environment."
+```
+
+<Tip>
+  As specified in `CONTRIBUTING.md`, provide context in commit messages to help reviewers understand the changes.
+</Tip>
+
+### 6. Push and create pull request
+
+```bash
+# Push to your fork
+git push origin add-new-template
+```
+
+Then create a pull request on GitHub:
+
+<Steps>
+  <Step title="Navigate to repository">
+    Go to https://github.com/projectdiscovery/nuclei-templates
+  </Step>
+  
+  <Step title="Click 'New Pull Request'">
+    Select your fork and branch
+  </Step>
+  
+  <Step title="Fill PR template">
+    Provide detailed information about your template
+  </Step>
+</Steps>
+
+## Pull request guidelines
+
+### PR description template
+
+Your pull request should include:
+
+```markdown
+## Description
+[Brief description of the vulnerability or exposure being detected]
+
+## Template Details
+- **Type**: CVE / Vulnerability / Exposure / Misconfiguration
+- **Severity**: Info / Low / Medium / High / Critical
+- **Affected Product**: [Product name and versions]
+- **Max Requests**: [Number of HTTP requests]
+
+## Testing
+- [x] Template validates successfully
+- [x] Tested against vulnerable target (true positive)
+- [x] Tested against safe target (no false positive)
+- [x] Follows template best practices
+
+## References
+- [Link to CVE/advisory/documentation]
+- [Link to vendor security bulletin]
+
+## Additional Context
+[Any additional information about the detection logic, special considerations, or testing methodology]
+```
+
+### Required PR elements
+
+From `CONTRIBUTING.md`:
+
+<Check>
+  ✓ Link to corresponding issue (create one if it doesn't exist)
+  
+  ✓ Context in PR description for reviewers
+  
+  ✓ Example of running the template (before/after if applicable)
+  
+  ✓ Steps for functional testing or replication
+  
+  ✓ Unit tests for new features (if contributing code)
+</Check>
+
+### Example PR description
+
+```markdown
+## Description
+This template detects CVE-2021-44228 (Log4Shell) by identifying Apache Log4j 
+vulnerable to JNDI injection through various vectors.
+
+## Template Details
+- **Type**: CVE
+- **Severity**: Critical
+- **Affected Product**: Apache Log4j 2.0-beta9 through 2.15.0 (excluding 2.12.2)
+- **Max Requests**: 3
+
+## Testing
+- [x] Template validates successfully
+- [x] Tested against intentionally vulnerable Log4j application
+- [x] Tested against patched version (no match)
+- [x] Includes OOB interaction for verification
+
+## References
+- https://nvd.nist.gov/vuln/detail/CVE-2021-44228
+- https://logging.apache.org/log4j/2.x/security.html
+- https://www.lunasec.io/docs/blog/log4j-zero-day/
+
+## Testing Command
+```bash
+nuclei -t cves/2021/CVE-2021-44228.yaml -u https://vulnerable-app.com -debug
+```
+
+## Additional Context
+Uses interactsh for OOB verification to confirm exploitation rather than just 
+detecting vulnerable versions.
+```
+
+## Special considerations
+
+### Code protocol templates
+
+<Warning>
+  Templates using the code protocol must be [signed](/templates/signing) before submission.
+</Warning>
+
+```bash
+# Sign code protocol template
+nuclei -sign -t code-template.yaml
+
+# Verify signature
+nuclei -verify -t code-template.yaml
+```
+
+From `pkg/templates/template_sign.go:59-88`:
+
+- Code templates are parsed with file imports resolved
+- Signatures include content of referenced files
+- Re-signing requires original signer's certificate
+
+### Sensitive information
+
+<Warning>
+  Never include sensitive data in templates:
+  - API keys or credentials
+  - Internal IP addresses or domains
+  - Proprietary information
+  - Personal data
+</Warning>
+
+Use variables and extractors appropriately:
+
+```yaml
+# Bad - Hardcoded credential
+headers:
+  Authorization: "Bearer sk-1234567890abcdef"
+
+# Good - Uses extracted token
+extractors:
+  - type: regex
+    name: token
+    internal: true  # Not shown in output
+    regex:
+      - 'token":"([^"]+)"'
+```
+
+### Rate limiting and ethics
+
+<Note>
+  Templates should respect target systems and follow responsible disclosure principles.
+</Note>
+
+- Minimize number of requests
+- Use appropriate delays for sensitive systems
+- Don't perform destructive operations
+- Follow responsible disclosure timelines
+
+## Code style and standards
+
+From `CONTRIBUTING.md`:
+
+### YAML formatting
+
+- Use 2-space indentation (no tabs)
+- Use lowercase for template IDs
+- Use hyphens in multi-word IDs
+- Keep lines under 120 characters when possible
+
+### Naming conventions
+
+<CodeGroup>
+```yaml CVE templates
+id: CVE-2021-12345
+
+info:
+  name: Product Name - Vulnerability Type
+  # Example: Apache Log4j - Remote Code Execution
+```
+
+```yaml Generic vulnerability templates
+id: product-vulnerability-type
+
+info:
+  name: Product Name Vulnerability Description
+  # Example: WordPress SQL Injection in Plugin X
+```
+
+```yaml Exposure templates
+id: exposed-resource-type
+
+info:
+  name: Exposed Resource Description
+  # Example: Exposed Git Config File
+```
+</CodeGroup>
+
+### Tag conventions
+
+Use consistent tags for categorization:
+
+- Technology: `apache`, `nginx`, `wordpress`, `jenkins`
+- Vulnerability type: `sqli`, `xss`, `rce`, `lfi`, `ssrf`
+- Category: `exposure`, `misconfiguration`, `takeover`
+- Impact: `disclosure`, `injection`, `auth-bypass`
+
+```yaml
+tags: apache,log4j,rce,oast,critical
+```
+
+## Development workflow
+
+### Running tests
+
+Before submitting, run validation checks:
+
+```bash
+# Validate template syntax
+make template-validate
+
+# Or using nuclei directly
+nuclei -validate -t your-template.yaml
+```
+
+For core Nuclei contributions (from `CONTRIBUTING.md`):
+
+```bash
+# Run unit tests
+make test
+
+# Run linters
+make vet
+
+# Build project
+make build
+```
+
+### Integration testing
+
+Test templates in realistic scenarios:
+
+```bash
+# Test against local target
+nuclei -t template.yaml -u http://localhost:8080
+
+# Test with interactsh
+nuclei -t template.yaml -u https://example.com -interactsh-url https://oast.me
+
+# Test with rate limiting
+nuclei -t template.yaml -l targets.txt -rate-limit 10
+```
+
+## Review process
+
+### What reviewers look for
+
+<AccordionGroup>
+  <Accordion title="Accuracy">
+    - No false positives on safe targets
+    - Correctly identifies vulnerable instances
+    - Matchers are specific and accurate
+  </Accordion>
+  
+  <Accordion title="Completeness">
+    - All required metadata present
+    - Proper references and classification
+    - Clear description of detection logic
+  </Accordion>
+  
+  <Accordion title="Quality">
+    - Follows best practices
+    - Minimal requests required
+    - Proper error handling
+  </Accordion>
+  
+  <Accordion title="Security">
+    - No destructive operations
+    - Respects responsible disclosure
+    - No sensitive data exposed
+  </Accordion>
+  
+  <Accordion title="Style">
+    - Consistent formatting
+    - Follows naming conventions
+    - Proper indentation and syntax
+  </Accordion>
+</AccordionGroup>
+
+### Responding to feedback
+
+When reviewers request changes:
+
+```bash
+# Make requested changes
+edit your-template.yaml
+
+# Commit changes
+git add your-template.yaml
+git commit -m "Address review feedback: improve matchers specificity"
+
+# Push updates
+git push origin add-new-template
+```
+
+<Tip>
+  Respond to review comments promptly and professionally. Explain your reasoning for design decisions.
+</Tip>
+
+## After merge
+
+Once your template is merged:
+
+<Steps>
+  <Step title="Update local repository">
+    ```bash
+    git checkout main
+    git pull upstream main
+    ```
+  </Step>
+  
+  <Step title="Delete feature branch">
+    ```bash
+    git branch -d add-new-template
+    git push origin --delete add-new-template
+    ```
+  </Step>
+  
+  <Step title="Verify in release">
+    Check that your template appears in the next release
+  </Step>
+</Steps>
+
+## Getting help
+
+If you need assistance:
+
+<CardGroup cols={2}>
+  <Card title="Discord community" icon="discord" href="https://discord.gg/projectdiscovery">
+    Join the ProjectDiscovery Discord for real-time help
+  </Card>
+  <Card title="GitHub discussions" icon="github" href="https://github.com/projectdiscovery/nuclei/discussions">
+    Ask questions in GitHub Discussions
+  </Card>
+  <Card title="Template examples" icon="code" href="https://github.com/projectdiscovery/nuclei-templates">
+    Browse existing templates for reference
+  </Card>
+  <Card title="Documentation" icon="book" href="/templates/introduction">
+    Review comprehensive template documentation
+  </Card>
+</CardGroup>
+
+## Recognition
+
+Contributors are recognized in:
+
+- Template author field
+- GitHub contribution graphs
+- ProjectDiscovery Hall of Fame
+- Community acknowledgments
+
+<Note>
+  Your contributions help secure thousands of applications and infrastructure worldwide.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Master template writing best practices
+  </Card>
+  <Card title="Template signing" icon="signature" href="/templates/signing">
+    Learn about signing code protocol templates
+  </Card>
+  <Card title="Validation" icon="check-circle" href="/templates/validation">
+    Understand template validation
+  </Card>
+  <Card title="Protocol reference" icon="book" href="/templates/protocols/http">
+    Explore protocol-specific features
+  </Card>
+</CardGroup>

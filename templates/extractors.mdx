@@ -1,0 +1,432 @@
+---
+title: Extractors
+description: Extract and reuse data from protocol responses
+---
+
+Extractors allow you to extract and reuse data from protocol responses. They can extract values using regex, JSON paths, XPath queries, key-value pairs, or DSL expressions. Extracted data can be used in subsequent requests or displayed in output.
+
+## Extractor types
+
+<Tabs>
+  <Tab title="Regex">
+    Extract data using regular expressions with optional capture groups.
+
+    ```yaml
+    extractors:
+      - type: regex
+        name: token
+        regex:
+          - "access_token\\$production\\$[0-9a-z]{16}\\$[0-9a-f]{32}"
+          - "Author:(?:[A-Za-z0-9 -\\_=\"]+)?<span(?:[A-Za-z0-9 -\\_=\"]+)?>([A-Za-z0-9]+)<\\/span>"
+        group: 1  # Extract first capture group
+    ```
+
+    <Note>Go regex engine does not support lookaheads or lookbehinds.</Note>
+  </Tab>
+  
+  <Tab title="KVal">
+    Extract key-value pairs from headers and cookies (case-insensitive).
+
+    ```yaml
+    extractors:
+      - type: kval
+        name: session
+        kval:
+          - "server"        # Extract Server header
+          - "phpsessid"     # Extract PHPSESSID cookie
+          - "content_type"  # Extract Content-Type (note: use _ instead of -)
+    ```
+
+    <Warning>
+      KVal inputs are case-insensitive and do not support dashes (`-`). Replace dashes with underscores (`_`).
+      Example: `Content-Type` becomes `content_type`
+    </Warning>
+  </Tab>
+  
+  <Tab title="JSON">
+    Extract data using jq-style JSON queries.
+
+    ```yaml
+    extractors:
+      - type: json
+        name: ids
+        json:
+          - ".[] | .id"
+          - ".batters | .batter | .[] | .id"
+    ```
+  </Tab>
+  
+  <Tab title="XPath">
+    Extract data using XPath queries from HTML/XML responses.
+
+    ```yaml
+    extractors:
+      - type: xpath
+        name: links
+        xpath:
+          - "/html/body/div/p[2]/a"
+        attribute: href  # Extract href attribute
+    ```
+  </Tab>
+  
+  <Tab title="DSL">
+    Extract data using Domain Specific Language expressions.
+
+    ```yaml
+    extractors:
+      - type: dsl
+        name: info
+        dsl:
+          - "'Server: ' + header['Server']"
+          - "status_code + ' - ' + content_length"
+    ```
+  </Tab>
+</Tabs>
+
+## Extractor options
+
+<ParamField path="name" type="string" required>
+  Name of the extractor. Used to reference extracted values. Must be lowercase without spaces or underscores.
+  
+  ```yaml
+  extractors:
+    - type: regex
+      name: "api-token"
+      regex:
+        - "token=([a-zA-Z0-9]+)"
+  ```
+</ParamField>
+
+<ParamField path="part" type="string" default="body">
+  Part of the response to extract from. Each protocol exposes different parts.
+  
+  ```yaml
+  extractors:
+    - type: kval
+      part: header
+      kval:
+        - "set-cookie"
+  ```
+</ParamField>
+
+<ParamField path="internal" type="boolean" default="false">
+  When true, extracted values can be used in subsequent requests but won't appear in output.
+  
+  ```yaml
+  extractors:
+    - type: regex
+      name: csrf
+      internal: true
+      regex:
+        - "csrf_token:\\s*([a-zA-Z0-9]+)"
+  ```
+</ParamField>
+
+<ParamField path="group" type="integer" default="0">
+  Regex capture group to extract. Use 0 for full match, 1+ for specific groups.
+  
+  ```yaml
+  extractors:
+    - type: regex
+      name: version
+      group: 1
+      regex:
+        - "Version:\\s*v?([0-9.]+)"
+  ```
+</ParamField>
+
+<ParamField path="attribute" type="string">
+  XPath attribute to extract from matched elements.
+  
+  ```yaml
+  extractors:
+    - type: xpath
+      name: image-urls
+      xpath:
+        - "//img"
+      attribute: src
+  ```
+</ParamField>
+
+<ParamField path="case-insensitive" type="boolean" default="false">
+  Enable case-insensitive extraction for regex extractors.
+  
+  ```yaml
+  extractors:
+    - type: regex
+      case-insensitive: true
+      regex:
+        - "(?i)error"
+  ```
+</ParamField>
+
+## Internal extractors
+
+Internal extractors are crucial for multi-step templates. They extract data from one request and make it available to subsequent requests:
+
+<CodeGroup>
+```yaml Dynamic Values
+http:
+  - raw:
+      - |
+        POST /login HTTP/1.1
+        Host: {{Hostname}}
+        
+        username=admin&password=test
+      - |
+        GET /api/data?token={{token}} HTTP/1.1
+        Host: {{Hostname}}
+    
+    extractors:
+      - type: regex
+        name: token
+        internal: true
+        group: 1
+        regex:
+          - "Token: '([A-Za-z0-9]+)'"
+```
+
+```yaml DNS to HTTP
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    extractors:
+      - type: dsl
+        name: blogid
+        internal: true
+        dsl:
+          - "trim_suffix(cname, '.vercel-dns.com')"
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    matchers:
+      - type: dsl
+        dsl:
+          - "contains(body, 'home')"
+          - "blogid == 'cname'"
+        condition: and
+```
+</CodeGroup>
+
+## Chaining requests with extractors
+
+Extract data and use it in subsequent requests:
+
+```yaml
+id: extract-and-iterate
+
+info:
+  name: Extract Emails and Check
+  author: pdteam
+  severity: info
+
+flow: |
+  http(1)
+  for (let email of template["emails"]) {
+    set("email", email);
+    http(2);
+  }
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    extractors:
+      - type: regex
+        name: emails
+        internal: true
+        regex:
+          - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+  
+  - method: GET
+    path:
+      - "{{BaseURL}}/user/{{base64(email)}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "Welcome"
+```
+
+## Protocol-specific parts
+
+<Tabs>
+  <Tab title="HTTP">
+    - `body` - Response body (default)
+    - `header` - Response headers
+    - `raw` - Raw HTTP response
+    - `request` - HTTP request
+    - `all` - Body + headers
+    - `cookies_from_response` - Cookies in name:value format
+    - `headers_from_response` - Headers in name:value format
+  </Tab>
+  
+  <Tab title="DNS">
+    - `raw` - Raw DNS response (default)
+    - `answer` - DNS answer field
+    - `question` - DNS question field
+    - `ns` - DNS nameserver field
+    - `extra` - DNS extra field
+  </Tab>
+  
+  <Tab title="Network">
+    - `raw` - Raw network response (default)
+    - `data` - Response data
+  </Tab>
+</Tabs>
+
+## Real-world examples
+
+<CodeGroup>
+```yaml AWS Token Extraction
+id: aws-token-extract
+
+info:
+  name: Extract AWS Tokens
+  author: pdteam
+  severity: info
+
+file:
+  - extensions:
+      - all
+    
+    extractors:
+      - type: regex
+        name: aws-keys
+        regex:
+          - "AKIA[0-9A-Z]{16}"
+          - "amzn\\.mws\\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+```
+
+```yaml Server Info Extraction
+id: server-info
+
+info:
+  name: Extract Server Information
+  author: pdteam
+  severity: info
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    
+    extractors:
+      - type: kval
+        part: header
+        kval:
+          - server
+          - x_powered_by
+      
+      - type: regex
+        part: header
+        regex:
+          - "(?i)Server:\\s*([^\\r\\n]+)"
+      
+      - type: dsl
+        dsl:
+          - "'Server: ' + header['Server'] + ' | Status: ' + status_code"
+```
+
+```yaml Subdomain Extraction
+id: dns-subdomains
+
+info:
+  name: Extract EC2 Subdomains
+  author: pdteam
+  severity: info
+
+dns:
+  - name: "{{FQDN}}"
+    type: CNAME
+    
+    extractors:
+      - type: regex
+        regex:
+          - "ec2-[-\\d]+\\.compute[-\\d]*\\.amazonaws\\.com"
+          - "ec2-[-\\d]+\\.[\\w\\d\\-]+\\.compute[-\\d]*\\.amazonaws\\.com"
+```
+</CodeGroup>
+
+## Extractor output
+
+By default, non-internal extractors display their results in the output:
+
+```bash
+[server-info] [http] [info] https://example.com
+  [server-info] nginx/1.18.0
+  [x_powered_by] PHP/7.4.3
+  [regex] nginx/1.18.0
+  [dsl] Server: nginx/1.18.0 | Status: 200
+```
+
+Internal extractors are only available in template variables and don't appear in output.
+
+## Best practices
+
+1. **Use internal extractors for chaining** - Mark extractors as internal when their values are only needed in subsequent requests
+2. **Name extractors descriptively** - Use clear names that indicate what data is being extracted
+3. **Extract minimal data** - Only extract the data you need to reduce memory usage
+4. **Use capture groups** - For regex extractors, use capture groups to extract specific parts
+5. **Validate extracted data** - Use matchers to verify extracted data meets expected format
+6. **Combine extractor types** - Use multiple extractor types for different data formats
+
+## Common patterns
+
+### Extract and validate
+
+```yaml
+extractors:
+  - type: regex
+    name: version
+    group: 1
+    regex:
+      - "Version:\\s*([0-9.]+)"
+
+matchers:
+  - type: regex
+    regex:
+      - "[0-9]+\\.[0-9]+\\.[0-9]+"  # Validate semver format
+```
+
+### Extract multiple values
+
+```yaml
+extractors:
+  - type: regex
+    name: endpoints
+    regex:
+      - "/api/v[0-9]+/[a-z]+"
+```
+
+### Extract and transform
+
+```yaml
+extractors:
+  - type: dsl
+    name: normalized-domain
+    dsl:
+      - "to_lower(trim_suffix(cname, '.'))"
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Matchers" icon="check-circle" href="/templates/matchers">
+    Pattern matching
+  </Card>
+  <Card title="Variables" icon="dollar-sign" href="/templates/variables">
+    Dynamic values
+  </Card>
+  <Card title="Helper Functions" icon="function" href="/templates/helper-functions">
+    DSL helper functions
+  </Card>
+  <Card title="Flow Control" icon="code-branch" href="/templates/flow-control">
+    Conditional execution
+  </Card>
+</CardGroup>

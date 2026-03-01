@@ -1,0 +1,216 @@
+---
+title: WHOIS protocol templates
+description: Create WHOIS templates for domain registration and ownership information gathering
+---
+
+WHOIS protocol templates allow you to query domain registration information, detect expiring domains, and gather ownership details.
+
+## Basic WHOIS query
+
+```yaml
+id: basic-whois
+
+info:
+  name: Basic WHOIS Query
+  author: pdteam
+  severity: info
+
+whois:
+  - query: "{{Host}}"
+    
+    extractors:
+      - type: kval
+        kval:
+          - "expiration date"
+          - "registrar"
+```
+
+## WHOIS components
+
+### Query
+
+<ParamField path="query" type="string" required>
+  Domain name to query. Usually `{{Host}}` for dynamic inputs.
+  
+  ```yaml
+  whois:
+    - query: "{{Host}}"
+  ```
+  
+  Or specific domain:
+  ```yaml
+  whois:
+    - query: "example.com"
+  ```
+</ParamField>
+
+### Server
+
+<ParamField path="server" type="string">
+  Optional WHOIS server to query. If omitted, automatic server discovery is used.
+  
+  ```yaml
+  whois:
+    - query: "{{Host}}"
+      server: "whois.verisign-grs.com"
+  ```
+</ParamField>
+
+## Example: Domain expiration check
+
+```yaml
+id: domain-expiring
+
+info:
+  name: Domain Expiration Check
+  author: pdteam
+  severity: info
+  description: Extracts domain expiration information
+
+whois:
+  - query: "{{Host}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "Registry Expiry Date"
+          - "Expiration Date"
+        condition: or
+    
+    extractors:
+      - type: kval
+        kval:
+          - "expiration date"
+          - "registry expiry date"
+```
+
+## Example: Registrar detection
+
+```yaml
+id: domain-registrar
+
+info:
+  name: Domain Registrar Detection
+  author: pdteam
+  severity: info
+
+whois:
+  - query: "{{Host}}"
+    
+    extractors:
+      - type: kval
+        name: registrar_info
+        kval:
+          - "registrar"
+          - "registrar url"
+          - "registrar abuse contact email"
+```
+
+## Example: Domain status check
+
+```yaml
+id: domain-status
+
+info:
+  name: Domain Status Check
+  author: pdteam
+  severity: info
+  description: Checks domain status flags
+
+whois:
+  - query: "{{Host}}"
+    
+    matchers:
+      - type: word
+        words:
+          - "clientTransferProhibited"
+          - "clientDeleteProhibited"
+        condition: or
+    
+    extractors:
+      - type: regex
+        name: domain_status
+        regex:
+          - "Domain Status:\\s*(.+)"
+        group: 1
+```
+
+## WHOIS extractors
+
+### Key-value extractor
+
+Extract specific WHOIS fields:
+
+```yaml
+extractors:
+  - type: kval
+    kval:
+      - "expiration date"
+      - "creation date"
+      - "registrar"
+      - "name server"
+```
+
+### Regex extractor
+
+Extract using patterns:
+
+```yaml
+extractors:
+  - type: regex
+    name: nameservers
+    regex:
+      - "Name Server:\\s*(.+)"
+    group: 1
+```
+
+## Complete example
+
+```yaml
+id: whois-comprehensive
+
+info:
+  name: Comprehensive WHOIS Information
+  author: pdteam
+  severity: info
+  description: Extracts detailed domain registration information
+
+whois:
+  - query: "{{Host}}"
+    
+    extractors:
+      - type: kval
+        name: registration_info
+        kval:
+          - "creation date"
+          - "expiration date"
+          - "updated date"
+      
+      - type: kval
+        name: registrar_info
+        kval:
+          - "registrar"
+          - "registrar url"
+      
+      - type: regex
+        name: nameservers
+        regex:
+          - "(?i)name server:\\s*(.+)"
+        group: 1
+      
+      - type: kval
+        name: status
+        kval:
+          - "domain status"
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="JavaScript protocol" icon="js" href="/templates/protocols/javascript">
+    Custom protocol implementations
+  </Card>
+  <Card title="Code protocol" icon="code" href="/templates/protocols/code">
+    Execute code snippets
+  </Card>
+</CardGroup>

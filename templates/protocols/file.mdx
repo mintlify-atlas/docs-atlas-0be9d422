@@ -1,0 +1,401 @@
+---
+title: File protocol templates
+description: Create file-based Nuclei templates for local file system scanning and analysis
+---
+
+File protocol templates enable scanning and analyzing local files for secrets, misconfigurations, and sensitive data patterns.
+
+## Basic file request
+
+```yaml
+id: basic-file-scan
+
+info:
+  name: Basic File Scan
+  author: pdteam
+  severity: info
+
+file:
+  - extensions:
+      - txt
+      - log
+    
+    matchers:
+      - type: word
+        words:
+          - "password"
+          - "secret"
+```
+
+## File components
+
+### Extensions
+
+<ParamField path="extensions" type="array" required>
+  File extensions to scan. Use `all` to scan all files.
+  
+  ```yaml
+  file:
+    - extensions:
+        - .env
+        - .config
+        - .yml
+        - .yaml
+  ```
+  
+  Scan all files:
+  ```yaml
+  file:
+    - extensions:
+        - all
+  ```
+</ParamField>
+
+### Deny list
+
+<ParamField path="denylist" type="array">
+  Files, directories, or extensions to exclude from scanning.
+  
+  ```yaml
+  file:
+    - extensions:
+        - all
+      denylist:
+        - .jpg
+        - .png
+        - .gif
+        - node_modules/
+        - .git/
+  ```
+</ParamField>
+
+### Max size
+
+<ParamField path="max-size" type="string">
+  Maximum file size to scan. Set to `no` for unlimited.
+  
+  ```yaml
+  file:
+    - extensions:
+        - all
+      max-size: 10MB
+  ```
+</ParamField>
+
+### Archive scanning
+
+<ParamField path="archive" type="boolean" default={false}>
+  Enable scanning inside archive files (zip, tar, etc.).
+  
+  ```yaml
+  file:
+    - extensions:
+        - all
+      archive: true
+  ```
+</ParamField>
+
+### MIME type detection
+
+<ParamField path="mime-type" type="boolean" default={false}>
+  Enable MIME type-based file detection.
+  
+  ```yaml
+  file:
+    - extensions:
+        - all
+      mime-type: true
+  ```
+</ParamField>
+
+### Recursive scanning
+
+<ParamField path="no-recursive" type="boolean" default={false}>
+  Disable recursive directory scanning.
+  
+  ```yaml
+  file:
+    - extensions:
+        - all
+      no-recursive: true
+  ```
+</ParamField>
+
+## Example: AWS keys detection
+
+```yaml
+id: aws-keys-file
+
+info:
+  name: AWS Access Keys in Files
+  author: pdteam
+  severity: high
+  description: Detects exposed AWS access keys in local files
+
+file:
+  - extensions:
+      - all
+    
+    matchers:
+      - type: regex
+        regex:
+          - "(?i)aws(.{0,20})?['\"][0-9a-zA-Z\\/+]{40}['\"]" 
+```
+
+## Example: Private key detection
+
+```yaml
+id: private-keys-file
+
+info:
+  name: Private Key Detection
+  author: pdteam
+  severity: critical
+  description: Detects private keys in local files
+
+file:
+  - extensions:
+      - all
+    
+    matchers:
+      - type: word
+        words:
+          - "BEGIN RSA PRIVATE KEY"
+          - "BEGIN DSA PRIVATE KEY"
+          - "BEGIN EC PRIVATE KEY"
+          - "BEGIN OPENSSH PRIVATE KEY"
+          - "BEGIN PGP PRIVATE KEY"
+        condition: or
+```
+
+## Example: Environment file scan
+
+```yaml
+id: env-file-secrets
+
+info:
+  name: Environment File Secrets
+  author: pdteam
+  severity: high
+  description: Scans .env files for sensitive information
+
+file:
+  - extensions:
+      - .env
+      - env
+    
+    extractors:
+      - type: regex
+        name: database_credentials
+        regex:
+          - "DB_PASSWORD=(.+)"
+          - "DATABASE_URL=(.+)"
+        group: 1
+      
+      - type: regex
+        name: api_keys
+        regex:
+          - "API_KEY=(.+)"
+          - "SECRET_KEY=(.+)"
+        group: 1
+```
+
+## Example: Configuration files
+
+```yaml
+id: config-file-scan
+
+info:
+  name: Configuration File Scanner
+  author: pdteam
+  severity: medium
+  description: Scans configuration files for sensitive data
+
+file:
+  - extensions:
+      - .yml
+      - .yaml
+      - .json
+      - .xml
+      - .conf
+      - .config
+    
+    max-size: 5MB
+    
+    matchers:
+      - type: regex
+        regex:
+          - "password\\s*[:=]\\s*[^\\s]+"
+          - "api[_-]?key\\s*[:=]\\s*[^\\s]+"
+          - "secret\\s*[:=]\\s*[^\\s]+"
+        condition: or
+```
+
+## Example: Source code secrets
+
+```yaml
+id: source-code-secrets
+
+info:
+  name: Secrets in Source Code
+  author: pdteam
+  severity: high
+  description: Detects hardcoded secrets in source code
+
+file:
+  - extensions:
+      - .py
+      - .js
+      - .java
+      - .go
+      - .php
+      - .rb
+    
+    denylist:
+      - node_modules/
+      - vendor/
+      - .git/
+    
+    matchers:
+      - type: regex
+        regex:
+          - "(?i)(password|passwd|pwd)\\s*=\\s*[\"'](.+?)[\"
+']"
+          - "(?i)api[_-]?key\\s*=\\s*[\"'](.+)[\"']"
+        condition: or
+```
+
+## File response parts
+
+<ResponseField name="raw" type="string">
+  Complete file contents (default)
+  
+  ```yaml
+  matchers:
+    - type: word
+      part: raw
+      words:
+        - "password"
+  ```
+</ResponseField>
+
+<ResponseField name="path" type="string">
+  File path
+  
+  ```yaml
+  extractors:
+    - type: dsl
+      dsl:
+        - path
+  ```
+</ResponseField>
+
+## Matchers for files
+
+```yaml
+matchers:
+  # Word matcher
+  - type: word
+    words:
+      - "api_key"
+      - "secret_token"
+    condition: or
+  
+  # Regex matcher
+  - type: regex
+    regex:
+      - "[a-zA-Z0-9]{32}"
+  
+  # Binary matcher
+  - type: binary
+    binary:
+      - "504B0304"  # ZIP signature
+```
+
+## Extractors for files
+
+```yaml
+extractors:
+  # Regex extraction
+  - type: regex
+    name: credentials
+    regex:
+      - 'password="(.+?)"'
+    group: 1
+  
+  # All matches
+  - type: regex
+    name: all_secrets
+    regex:
+      - "(?i)(password|secret|key)\\s*[:=]\\s*(.+)"
+```
+
+## Running file templates
+
+File templates require a directory path instead of URL:
+
+```bash
+# Scan current directory
+nuclei -t file-template.yaml -target .
+
+# Scan specific directory
+nuclei -t file-template.yaml -target /path/to/project
+
+# Scan multiple directories
+echo "/path/to/dir1" | nuclei -t file-template.yaml
+echo "/path/to/dir2" | nuclei -t file-template.yaml
+```
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Use appropriate extensions">
+    Limit extensions to relevant file types to improve performance:
+    
+    ```yaml
+    file:
+      - extensions:
+          - .env
+          - .config
+        # Better than scanning 'all'
+    ```
+  </Accordion>
+  
+  <Accordion title="Set size limits">
+    Prevent scanning large files:
+    
+    ```yaml
+    file:
+      - max-size: 10MB
+    ```
+  </Accordion>
+  
+  <Accordion title="Use deny lists">
+    Exclude irrelevant directories:
+    
+    ```yaml
+    file:
+      - denylist:
+          - node_modules/
+          - .git/
+          - vendor/
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Matchers" icon="filter" href="/templates/matchers">
+    Complete matcher reference
+  </Card>
+  <Card title="Extractors" icon="scissors" href="/templates/extractors">
+    Data extraction guide
+  </Card>
+  <Card title="Helper functions" icon="function" href="/templates/helper-functions">
+    DSL function reference
+  </Card>
+  <Card title="Best practices" icon="star" href="/templates/best-practices">
+    Template quality guidelines
+  </Card>
+</CardGroup>
